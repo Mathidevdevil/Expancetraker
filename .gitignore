@@ -1,0 +1,38 @@
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.iml
+android/*/*.iml
+android/.idea/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Node & Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+node_modules/
+.next/
+
+# Secrets & Environment configs
+.env
+.env.local
+.env.*.local
+web/.env.local
+web/.env.*.local
+
+# Editor & System
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local Debug Screenshots
+screenshot_*.png
