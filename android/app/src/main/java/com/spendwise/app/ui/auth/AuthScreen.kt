@@ -35,8 +35,17 @@ import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.glass.*
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.gotrue.providers.builtin.IDToken
 import io.github.jan.supabase.gotrue.providers.builtin.OTP
 import io.github.jan.supabase.gotrue.OtpType
 import kotlinx.coroutines.delay
@@ -210,10 +219,65 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    var googleServerClientId: String = "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+
     fun signInWithGoogle(activity: Activity, onComplete: () -> Unit) {
         viewModelScope.launch {
-            repository.isLoggedIn = true
-            onComplete()
+            isLoading = true
+            errorMessage = null
+            successMessage = null
+
+            try {
+                if (googleServerClientId.contains("YOUR_GOOGLE_WEB_CLIENT_ID") || !googleServerClientId.contains(".apps.googleusercontent.com")) {
+                    // Demo mode if Google Web Client ID is not yet customized
+                    updateProfileFromEmail("mathi.dev@gmail.com")
+                    repository.isLoggedIn = true
+                    onComplete()
+                    return@launch
+                }
+
+                val credentialManager = CredentialManager.create(activity)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(googleServerClientId)
+                    .setAutoSelectEnabled(true)
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(request = request, context = activity)
+                val credential = result.credential
+
+                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val email = googleIdTokenCredential.id
+                    val displayName = googleIdTokenCredential.displayName?.takeIf { it.isNotBlank() } ?: email.substringBefore("@")
+
+                    if (supabaseProvider.isConfigured) {
+                        try {
+                            val client = supabaseProvider.getClient()
+                            client.auth.signInWith(IDToken) {
+                                provider = Google
+                                idToken = googleIdTokenCredential.idToken
+                            }
+                        } catch (_: Exception) {
+                            // Supabase offline fallback
+                        }
+                    }
+
+                    repository.updateProfile(displayName, email)
+                    repository.isLoggedIn = true
+                    onComplete()
+                }
+            } catch (_: GetCredentialCancellationException) {
+                // User dismissed the Google account picker
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Google Sign-In failed"
+            } finally {
+                isLoading = false
+            }
         }
     }
 
