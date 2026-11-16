@@ -677,6 +677,7 @@ fun DashboardScreen(
     if (isEditProfileDialogOpen) {
         EditProfileDialog(
             currentProfile = state.userProfile,
+            isDark = isDark,
             onDismiss = { isEditProfileDialogOpen = false },
             onSave = { newName, newEmail ->
                 viewModel.updateProfile(newName, newEmail)

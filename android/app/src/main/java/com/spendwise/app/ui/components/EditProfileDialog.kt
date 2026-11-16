@@ -1,30 +1,35 @@
 package com.spendwise.app.ui.components
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendwise.app.data.repository.UserProfile
+import com.spendwise.app.ui.components.glass.GlassGradientButton
+import com.spendwise.app.ui.theme.*
 
 @Composable
 fun EditProfileDialog(
     currentProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (name: String, email: String) -> Unit
+    onSave: (name: String, email: String) -> Unit,
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
     var name by remember { mutableStateOf(currentProfile.name) }
     var email by remember { mutableStateOf(currentProfile.email) }
@@ -43,8 +48,27 @@ fun EditProfileDialog(
         }
     }
 
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = if (isDark) Color(0x1F22283A) else Color(0xFFF1F3F9),
+        unfocusedContainerColor = if (isDark) Color(0x1422283A) else Color(0xFFF8F9FD),
+        focusedBorderColor = if (isDark) AppleIndigoLight else AppleIndigo,
+        unfocusedBorderColor = if (isDark) Color(0x33FFFFFF) else Color(0x260F172A),
+        focusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
+        unfocusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
+        focusedLabelColor = if (isDark) AppleIndigoLight else AppleIndigo,
+        unfocusedLabelColor = if (isDark) TextMutedDark else TextMutedLight
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.border(
+            width = 1.dp,
+            brush = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
+            shape = RoundedCornerShape(26.dp)
+        ),
+        shape = RoundedCornerShape(26.dp),
+        containerColor = if (isDark) SolidFallbackDark else Color.White,
+        tonalElevation = 8.dp,
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -53,8 +77,8 @@ fun EditProfileDialog(
                 // Interactive Avatar Preview
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+                    color = if (isDark) AppleIndigo.copy(alpha = 0.25f) else AppleIndigo.copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(2.dp, if (isDark) AppleIndigoLight else AppleIndigo),
                     modifier = Modifier.size(68.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -62,7 +86,7 @@ fun EditProfileDialog(
                             text = previewInitials,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isDark) AppleIndigoLight else AppleIndigo
                         )
                     }
                 }
@@ -71,12 +95,13 @@ fun EditProfileDialog(
                     text = "Edit Profile",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Update your account display information",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isDark) TextMutedDark else TextMutedLight
                 )
             }
         },
@@ -94,10 +119,15 @@ fun EditProfileDialog(
                     label = { Text("Full Name") },
                     placeholder = { Text("e.g. Alex Morgan") },
                     leadingIcon = {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            tint = if (isDark) AppleIndigoLight else AppleIndigo
+                        )
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -107,16 +137,22 @@ fun EditProfileDialog(
                     label = { Text("Email Address") },
                     placeholder = { Text("e.g. alex@spendwise.app") },
                     leadingIcon = {
-                        Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Default.Email,
+                            contentDescription = null,
+                            tint = if (isDark) AppleIndigoLight else AppleIndigo
+                        )
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            Button(
+            GlassGradientButton(
+                text = "Save Profile",
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     val finalName = name.trim().ifEmpty { "User" }
@@ -124,27 +160,20 @@ fun EditProfileDialog(
                     onSave(finalName, finalEmail)
                     onDismiss()
                 },
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            ) {
-                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Save Profile", fontWeight = FontWeight.Bold)
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         },
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
                 shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Cancel")
+                Text(
+                    "Cancel",
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) TextMutedDark else TextMutedLight
+                )
             }
-        },
-        shape = RoundedCornerShape(26.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 6.dp
+        }
     )
 }

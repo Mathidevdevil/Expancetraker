@@ -174,6 +174,7 @@ fun MainAppScaffold(
                         viewModel = vm,
                         onBack = { navController.popBackStack() },
                         onNavigateToCategories = { navController.navigate(Screen.Categories.route) },
+                        isDark = isDark,
                         onLogout = {
                             dashboardViewModel.logout()
                             navController.navigate(Screen.Auth.route) {

@@ -1,7 +1,9 @@
 package com.spendwise.app.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -69,7 +71,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onLogout: () -> Unit,
     onBack: (() -> Unit)? = null,
-    onNavigateToCategories: (() -> Unit)? = null
+    onNavigateToCategories: (() -> Unit)? = null,
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val currentThemeMode by viewModel.themeMode.collectAsState()
@@ -526,7 +529,21 @@ fun SettingsScreen(
     if (isCurrencyDialogOpen) {
         AlertDialog(
             onDismissRequest = { isCurrencyDialogOpen = false },
-            title = { Text("Choose Primary Currency", fontWeight = FontWeight.Bold) },
+            shape = RoundedCornerShape(26.dp),
+            modifier = Modifier.border(
+                1.dp,
+                if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
+                RoundedCornerShape(26.dp)
+            ),
+            containerColor = if (isDark) SolidFallbackDark else Color.White,
+            tonalElevation = 8.dp,
+            title = {
+                Text(
+                    "Choose Primary Currency",
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                )
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     viewModel.currencyOptions.forEach { opt ->
@@ -547,11 +564,22 @@ fun SettingsScreen(
                                 onClick = {
                                     viewModel.setCurrency(opt.code, opt.symbol)
                                     isCurrencyDialogOpen = false
-                                }
+                                },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = if (isDark) AppleIndigoLight else AppleIndigo
+                                )
                             )
                             Column {
-                                Text("${opt.name} (${opt.symbol})", fontWeight = FontWeight.SemiBold)
-                                Text(opt.code, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "${opt.name} (${opt.symbol})",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                                )
+                                Text(
+                                    opt.code,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isDark) TextMutedDark else TextMutedLight
+                                )
                             }
                         }
                     }
@@ -560,7 +588,7 @@ fun SettingsScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { isCurrencyDialogOpen = false }) {
-                    Text("Close")
+                    Text("Close", color = if (isDark) TextMutedDark else TextMutedLight)
                 }
             }
         )
@@ -569,6 +597,7 @@ fun SettingsScreen(
     if (isEditProfileDialogOpen) {
         EditProfileDialog(
             currentProfile = userProfile,
+            isDark = isDark,
             onDismiss = { isEditProfileDialogOpen = false },
             onSave = { newName, newEmail ->
                 viewModel.updateProfile(newName, newEmail)
