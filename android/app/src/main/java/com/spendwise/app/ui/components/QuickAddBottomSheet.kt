@@ -215,7 +215,7 @@ fun QuickAddBottomSheet(
                     val chipBorder = if (isSelected) {
                         if (isDark) AppleIndigoLight else AppleIndigo
                     } else {
-                        Color(0x1FFFFFFF)
+                        if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
                     }
 
                     Box(

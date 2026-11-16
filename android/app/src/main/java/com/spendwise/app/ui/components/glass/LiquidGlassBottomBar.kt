@@ -154,7 +154,7 @@ fun LiquidGlassBottomBar(
                         modifier = Modifier.scale(iconScale)
                     ) {
                         val activeColor = if (isDark) AppleIndigoLight else AppleIndigo
-                        val inactiveColor = if (isDark) TextTertiaryDark else TextTertiaryLight
+                        val inactiveColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
 
                         Icon(
                             imageVector = tab.icon,
@@ -204,7 +204,7 @@ fun GlassFloatingAddButton(
 
     Box(
         modifier = modifier
-            .size(54.dp)
+            .size(52.dp)
             .shadow(
                 elevation = 12.dp,
                 shape = shape,
@@ -234,7 +234,7 @@ fun GlassFloatingAddButton(
             imageVector = Icons.Default.Add,
             contentDescription = "Quick Add Transaction",
             tint = Color.White,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(24.dp)
         )
     }
 }

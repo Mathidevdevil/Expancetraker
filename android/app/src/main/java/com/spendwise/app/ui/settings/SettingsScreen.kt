@@ -81,6 +81,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(scrollState)
             .padding(horizontal = 18.dp),
@@ -497,7 +498,7 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Sign Out Button
         Button(
@@ -519,7 +520,7 @@ fun SettingsScreen(
             Text("Sign Out", fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(84.dp))
+        Spacer(modifier = Modifier.height(136.dp))
     }
 
     if (isCurrencyDialogOpen) {

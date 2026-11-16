@@ -99,7 +99,7 @@ fun CategoriesScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -108,13 +108,14 @@ fun CategoriesScreen(
                     fontWeight = FontWeight.ExtraBold,
                     color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Manage tags, icons, and colors",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isDark) TextMutedDark else TextMutedLight
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             GlassSecondaryButton(
                 text = "New",
                 leadingIcon = {
@@ -149,7 +150,7 @@ fun CategoriesScreen(
         // Categories List
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 120.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 136.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(filtered, key = { it.id }) { cat ->
@@ -196,8 +197,8 @@ fun CategoriesScreen(
                                 Icon(
                                     Icons.Default.DeleteOutline,
                                     contentDescription = "Delete",
-                                    tint = if (isDark) TextMutedDark.copy(alpha = 0.5f) else TextMutedLight.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(18.dp)
+                                    tint = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }

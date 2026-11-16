@@ -141,7 +141,7 @@ fun BudgetsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 136.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Top Header
@@ -149,7 +149,7 @@ fun BudgetsScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -158,13 +158,14 @@ fun BudgetsScreen(
                         fontWeight = FontWeight.ExtraBold,
                         color = if (isDark) TextPrimaryDark else TextPrimaryLight
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Category limits & threshold alerts for ${state.monthName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isDark) TextMutedDark else TextMutedLight
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 GlassSecondaryButton(
                     text = "Add Target",
                     leadingIcon = {
@@ -247,7 +248,7 @@ fun BudgetsScreen(
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
                         color = progressColor,
-                        trackColor = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
+                        trackColor = if (isDark) Color(0x26FFFFFF) else Color(0x330F172A)
                     )
                 }
             }
@@ -380,13 +381,13 @@ fun BudgetsScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         viewModel.deleteBudget(item.budget.id)
                                     },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.DeleteOutline,
                                         contentDescription = "Delete",
-                                        tint = if (isDark) TextMutedDark.copy(alpha = 0.5f) else TextMutedLight.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(18.dp)
+                                        tint = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
+                                        modifier = Modifier.size(19.dp)
                                     )
                                 }
                             }
@@ -400,7 +401,7 @@ fun BudgetsScreen(
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
                             color = statusColor,
-                            trackColor = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
+                            trackColor = if (isDark) Color(0x26FFFFFF) else Color(0x330F172A)
                         )
 
                         Row(

@@ -33,9 +33,9 @@ val SolidFallbackDark = Color(0xFF121524)
 // Specular Highlight Gradient Brushes (1dp Beveled Glass Edge)
 val LightGlassBorderBrush = Brush.verticalGradient(
     colors = listOf(
-        Color(0xF0FFFFFF), // 94% crisp specular highlight at top edge
-        Color(0x66FFFFFF), // 40% mid-reflection
-        Color(0x1AFFFFFF)  // 10% bottom fade
+        Color(0xFFFFFFFF), // 100% crisp specular highlight at top edge
+        Color(0x80FFFFFF), // 50% mid-reflection
+        Color(0x1F0F172A)  // 12% subtle slate rim at bottom/sides for boundary definition
     )
 )
 
@@ -50,8 +50,8 @@ val DarkGlassBorderBrush = Brush.verticalGradient(
 val LightGlassLensBorderBrush = Brush.verticalGradient(
     colors = listOf(
         Color(0xFFFFFFFF),
-        Color(0x80FFFFFF),
-        Color(0x33FFFFFF)
+        Color(0x99FFFFFF),
+        Color(0x260F172A)
     )
 )
 

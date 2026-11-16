@@ -191,7 +191,7 @@ fun MainAppScaffold(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                    .padding(start = 14.dp, end = 14.dp, bottom = 12.dp)
                     .navigationBarsPadding(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)

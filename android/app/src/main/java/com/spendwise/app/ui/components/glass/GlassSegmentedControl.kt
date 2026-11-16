@@ -38,7 +38,7 @@ fun GlassSegmentedControl(
     isDark: Boolean = isSystemInDarkTheme()
 ) {
     val haptic = LocalHapticFeedback.current
-    val trackFill = if (isDark) Color(0x14FFFFFF) else Color(0x240F172A)
+    val trackFill = if (isDark) Color(0x14FFFFFF) else Color(0x73FFFFFF)
     val trackBorder = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
 
     val lensFill = if (isDark) AppleIndigoLight else AppleIndigo
@@ -94,7 +94,7 @@ fun GlassSegmentedControl(
                         text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.White else if (isDark) TextMutedDark else TextMutedLight,
+                        color = if (isSelected) Color.White else if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155),
                         fontSize = 13.sp
                     )
                 }

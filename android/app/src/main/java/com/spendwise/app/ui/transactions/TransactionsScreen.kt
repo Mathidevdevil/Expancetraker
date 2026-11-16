@@ -58,15 +58,16 @@ fun TransactionsScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Activity",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "${state.transactions.size} transactions recorded",
                     style = MaterialTheme.typography.bodySmall,
@@ -74,17 +75,24 @@ fun TransactionsScreen(
                 )
             }
 
-            // Quick Add glass icon button
-            GlassIconButton(
-                onClick = onOpenQuickAdd,
-                size = 42.dp,
-                isDark = isDark
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Add",
-                    tint = if (isDark) AppleIndigoLight else AppleIndigo
-                )
+            val hasActiveFilters = state.searchQuery.isNotBlank() || state.filterType != "all" || state.filterCategoryId != null
+            if (hasActiveFilters) {
+                GlassIconButton(
+                    onClick = {
+                        viewModel.onSearchQueryChanged("")
+                        viewModel.onFilterTypeChanged("all")
+                        viewModel.onFilterCategoryChanged(null)
+                    },
+                    size = 42.dp,
+                    isDark = isDark
+                ) {
+                    Icon(
+                        Icons.Default.FilterAltOff,
+                        contentDescription = "Clear Filters",
+                        tint = if (isDark) WarningAmber else AppleIndigo,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
@@ -234,7 +242,7 @@ fun TransactionsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 120.dp),
+                contentPadding = PaddingValues(bottom = 136.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 groupedTransactions.forEach { (dateHeader, txList) ->
@@ -244,7 +252,7 @@ fun TransactionsScreen(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
-                            color = if (isDark) TextMutedDark else TextMutedLight,
+                            color = if (isDark) AppleIndigoLight else AppleIndigo,
                             modifier = Modifier.padding(top = 8.dp, start = 4.dp, bottom = 2.dp)
                         )
                     }
@@ -298,7 +306,7 @@ fun GlassFilterChip(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color.White else if (isDark) TextPrimaryDark else TextPrimaryLight
+            color = if (isSelected) Color.White else if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155)
         )
     }
 }
@@ -406,13 +414,13 @@ fun TransactionRowItem(
 
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
                             Icons.Default.DeleteOutline,
                             contentDescription = "Delete",
-                            tint = if (isDark) TextMutedDark.copy(alpha = 0.5f) else TextMutedLight.copy(alpha = 0.5f),
-                            modifier = Modifier.size(18.dp)
+                            tint = if (isDark) Color(0xFFCBD5E1) else Color(0xFF64748B),
+                            modifier = Modifier.size(19.dp)
                         )
                     }
                 }

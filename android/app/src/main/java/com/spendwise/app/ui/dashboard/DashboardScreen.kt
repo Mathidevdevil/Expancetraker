@@ -73,7 +73,7 @@ fun DashboardScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 18.dp, bottom = 120.dp), // 120dp ensures floating bottom bar never covers content
+        contentPadding = PaddingValues(top = 18.dp, bottom = 136.dp), // 136dp ensures floating bottom bar never covers content
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Top Header: Greeting, Brand & Quick Glass Actions
@@ -180,7 +180,7 @@ fun DashboardScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
-                        color = if (isDark) TextMutedDark else TextMutedLight
+                        color = if (isDark) AppleIndigoLight else AppleIndigo
                     )
 
                     // Hero Large Balance with Tabular Digits & Indian grouping
@@ -614,7 +614,7 @@ fun DashboardScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
-                        color = if (isDark) TextMutedDark else TextMutedLight,
+                        color = if (isDark) AppleIndigoLight else AppleIndigo,
                         modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                     )
                 }
