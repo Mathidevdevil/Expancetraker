@@ -18,6 +18,7 @@ import {
   Sun,
   Moon,
   Wallet,
+  LogIn,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -33,7 +34,7 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isRealtimeConnected, isSupabaseLive, currency, userProfile } = useFinance();
+  const { isRealtimeConnected, isSupabaseLive, currency, userProfile, user } = useFinance();
   const { theme, setTheme } = useTheme();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -114,6 +115,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </button>
 
+          {/* Quick Login / Account Link */}
+          <Link
+            href="/login"
+            className="w-full py-2 px-3 rounded-2xl bg-secondary/60 hover:bg-secondary text-foreground hover:text-primary font-semibold text-xs flex items-center justify-center gap-2 border border-border/60 transition-all active:scale-[0.98]"
+          >
+            <LogIn className="w-3.5 h-3.5 text-primary" />
+            <span>{user ? 'Switch Account / Login' : 'Sign In / Create Account'}</span>
+          </Link>
+
           <div className="p-3 rounded-2xl bg-secondary/50 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               <div
@@ -155,6 +165,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+              title="Sign In / Login"
+            >
+              <LogIn className="w-4 h-4 text-primary" />
+            </Link>
             <button
               onClick={() => setIsEditProfileOpen(true)}
               className="w-8 h-8 rounded-xl bg-primary/15 text-primary border border-primary/30 flex items-center justify-center font-bold text-xs"

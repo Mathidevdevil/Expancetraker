@@ -138,6 +138,13 @@ class DashboardViewModel @Inject constructor(
 
     val themeMode: StateFlow<String> = repository.themeMode
 
+    val isLoggedIn: Boolean
+        get() = repository.isLoggedIn
+
+    fun logout() {
+        repository.logout()
+    }
+
     fun setThemeMode(mode: String) {
         repository.setThemeMode(mode)
     }

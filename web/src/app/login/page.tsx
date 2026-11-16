@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
-import { Wallet, Mail, Lock, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { Wallet, Mail, Lock, ArrowRight, ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,18 @@ export default function LoginPage() {
 
     try {
       if (!isConfigured) {
-        // In local/demo mode, log in immediately
+        // In local/demo mode, save profile and log in immediately
+        const namePart = email.split('@')[0].replace('.', ' ');
+        const cleanName = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'User';
+        const initials = cleanName.split(' ').slice(0, 2).map(s => s[0].toUpperCase()).join('') || 'SW';
+        try {
+          localStorage.setItem('spendwise_user_profile', JSON.stringify({
+            name: cleanName,
+            email,
+            initials,
+            bio: 'Personal Finance & Travel Budgeter'
+          }));
+        } catch (_) {}
         router.push('/');
         return;
       }
@@ -76,6 +88,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted/30 to-background">
       <div className="w-full max-w-md space-y-6">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </Link>
+        </div>
+
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white mx-auto shadow-xl shadow-primary/30">

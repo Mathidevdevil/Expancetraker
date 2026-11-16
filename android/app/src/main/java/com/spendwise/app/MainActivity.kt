@@ -152,9 +152,11 @@ fun MainAppScaffold(
             }
         }
     ) { innerPadding ->
+        val startDestination = if (dashboardViewModel.isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
+
         NavHost(
             navController = navController,
-            startDestination = Screen.Dashboard.route,
+            startDestination = startDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Auth.route) {
@@ -210,8 +212,9 @@ fun MainAppScaffold(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onLogout = {
+                        dashboardViewModel.logout()
                         navController.navigate(Screen.Auth.route) {
-                            popUpTo(Screen.Dashboard.route) { inclusive = true }
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 )

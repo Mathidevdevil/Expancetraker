@@ -40,6 +40,14 @@ class FinanceRepository @Inject constructor(
         get() = prefs.getString("selected_currency_symbol", "₹") ?: "₹"
         set(value) { prefs.edit().putString("selected_currency_symbol", value).apply() }
 
+    var isLoggedIn: Boolean
+        get() = prefs.getBoolean("is_logged_in", false)
+        set(value) { prefs.edit().putBoolean("is_logged_in", value).apply() }
+
+    fun logout() {
+        isLoggedIn = false
+    }
+
     private val _themeMode = MutableStateFlow(
         prefs.getString("theme_mode", "dark") ?: "dark"
     )

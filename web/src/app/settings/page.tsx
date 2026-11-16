@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useFinance } from '@/context/finance-context';
 import { CURRENCIES, CurrencyCode } from '@/types/database';
 import { useTheme } from 'next-themes';
@@ -12,6 +13,7 @@ import {
   Sun,
   Laptop,
   LogOut,
+  LogIn,
   Database,
   User,
   Check,
@@ -213,14 +215,24 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="px-4 py-2 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-semibold flex items-center gap-2 transition-colors border border-rose-500/20"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
-          </button>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="px-4 py-2 rounded-2xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-xs font-semibold flex items-center gap-2 transition-colors border border-rose-500/20"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In to Cloud Account</span>
+            </Link>
+          )}
         </div>
       </div>
 
