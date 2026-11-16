@@ -219,7 +219,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    var googleServerClientId: String = "176968816003-nshr9hpsr5egtbf5cs42bpp0am9d457k.apps.googleusercontent.com"
+    var googleServerClientId: String = "176968816003-6f79gedb3hl43fnp62n74a1jn5mq6ii2.apps.googleusercontent.com"
 
     fun signInWithGoogle(activity: Activity, onComplete: () -> Unit) {
         viewModelScope.launch {
