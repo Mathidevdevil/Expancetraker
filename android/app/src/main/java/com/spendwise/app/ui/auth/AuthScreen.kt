@@ -219,7 +219,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    var googleServerClientId: String = "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+    var googleServerClientId: String = "176968816003-nshr9hpsr5egtbf5cs42bpp0am9d457k.apps.googleusercontent.com"
 
     fun signInWithGoogle(activity: Activity, onComplete: () -> Unit) {
         viewModelScope.launch {
@@ -274,7 +274,12 @@ class AuthViewModel @Inject constructor(
             } catch (_: GetCredentialCancellationException) {
                 // User dismissed the Google account picker
             } catch (e: Exception) {
-                errorMessage = e.message ?: "Google Sign-In failed"
+                val rawMsg = e.message ?: "Google Sign-In failed"
+                errorMessage = if (rawMsg.contains("16") || rawMsg.contains("DEVELOPER_ERROR") || rawMsg.contains("10") || rawMsg.contains("fingerprint")) {
+                    "Google setup needed: Add Android Client ID with SHA-1 ED:15:EB:18... in Google Cloud Console. (Tap below for Demo)"
+                } else {
+                    rawMsg
+                }
             } finally {
                 isLoading = false
             }
