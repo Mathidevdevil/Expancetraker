@@ -3,6 +3,7 @@ package com.spendwise.app.ui.categories
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,6 +30,10 @@ import com.spendwise.app.data.model.SyncStatus
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.CategoryIconView
 import com.spendwise.app.ui.components.getIconVector
+import com.spendwise.app.ui.components.glass.GlassGradientButton
+import com.spendwise.app.ui.components.glass.GlassRow
+import com.spendwise.app.ui.components.glass.GlassSecondaryButton
+import com.spendwise.app.ui.components.glass.GlassSegmentedControl
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -63,13 +68,20 @@ class CategoriesViewModel @Inject constructor(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoriesScreen(viewModel: CategoriesViewModel) {
+fun CategoriesScreen(
+    viewModel: CategoriesViewModel,
+    isDark: Boolean = isSystemInDarkTheme()
+) {
     val categories by viewModel.categories.collectAsState()
-    var selectedTab by remember { mutableStateOf("expense") }
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    val selectedTab = if (selectedIndex == 0) "expense" else "income"
     var isAddDialogOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+
+    val expenseCount = categories.count { it.type == "expense" }
+    val incomeCount = categories.count { it.type == "income" }
+    val tabLabels = listOf("Expenses ($expenseCount)", "Incomes ($incomeCount)")
 
     val filtered = remember(categories, selectedTab) {
         categories.filter { it.type == selectedTab }
@@ -78,11 +90,12 @@ fun CategoriesScreen(viewModel: CategoriesViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 18.dp)
     ) {
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
+        // Top Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -93,147 +106,111 @@ fun CategoriesScreen(viewModel: CategoriesViewModel) {
                     text = "Categories",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
                 Text(
                     text = "Manage tags, icons, and colors",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isDark) TextMutedDark else TextMutedLight
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
-            FilledTonalButton(
+            GlassSecondaryButton(
+                text = "New",
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isDark) AppleIndigoLight else AppleIndigo
+                    )
+                },
+                isDark = isDark,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     isAddDialogOpen = true
-                },
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("New", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            }
+                }
+            )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Apple Liquid Glass Segmented Lens Slider
+        GlassSegmentedControl(
+            items = tabLabels,
+            selectedIndex = selectedIndex,
+            onSelect = { selectedIndex = it },
+            isDark = isDark,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-            // Calm Segmented Pill Tab
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(modifier = Modifier.padding(4.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedTab == "expense") MaterialTheme.colorScheme.primary else Color.Transparent,
+        // Categories List
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(filtered, key = { it.id }) { cat ->
+                GlassRow(
+                    isDark = isDark,
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedTab = "expense"
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        CategoryIconView(
+                            iconName = cat.icon,
+                            colorHex = cat.color,
+                            size = 42.dp
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Expenses (${categories.count { it.type == "expense" }})",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (selectedTab == "expense") Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                text = cat.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                            )
+                            Text(
+                                text = if (cat.isDefault) "Default System Category" else "Custom Category",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isDark) TextMutedDark else TextMutedLight
                             )
                         }
-                    }
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedTab == "income") IncomeEmerald else Color.Transparent,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedTab = "income"
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                    ) {
-                        Box(modifier = Modifier.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Incomes (${categories.count { it.type == "income" }})",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (selectedTab == "income") Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Categories List
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 104.dp), // Safe margin so FAB never obstructs items
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(filtered, key = { it.id }) { cat ->
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            CategoryIconView(
-                                iconName = cat.icon,
-                                colorHex = cat.color,
-                                size = 42.dp
-                            )
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = cat.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onBackground
+                        if (!cat.isDefault) {
+                            IconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.deleteCategory(cat.id)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.DeleteOutline,
+                                    contentDescription = "Delete",
+                                    tint = if (isDark) TextMutedDark.copy(alpha = 0.5f) else TextMutedLight.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Text(
-                                    text = if (cat.isDefault) "Default System Category" else "Custom Category",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            if (!cat.isDefault) {
-                                IconButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.deleteCategory(cat.id)
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.DeleteOutline,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
 
     if (isAddDialogOpen) {
         AddCategoryDialog(
             type = selectedTab,
+            isDark = isDark,
             onDismiss = { isAddDialogOpen = false },
             onSave = { name, icon, color ->
                 viewModel.addCategory(name, selectedTab, icon, color)
@@ -246,75 +223,104 @@ fun CategoriesScreen(viewModel: CategoriesViewModel) {
 @Composable
 fun AddCategoryDialog(
     type: String,
+    isDark: Boolean = isSystemInDarkTheme(),
     onDismiss: () -> Unit,
     onSave: (name: String, icon: String, color: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var selectedIcon by remember { mutableStateOf("Tag") }
-    var selectedColor by remember { mutableStateOf("#6366F1") }
+    var selectedColor by remember { mutableStateOf("#5B4BE8") }
 
     val icons = listOf("Tag", "Utensils", "ShoppingCart", "Car", "Film", "Home", "HeartPulse", "GraduationCap", "Gift", "Plane")
-    val colors = listOf("#6366F1", "#10B981", "#F43F5E", "#F59E0B", "#06B6D4", "#8B5CF6", "#EC4899", "#3B82F6")
+    val colors = listOf("#5B4BE8", "#10B981", "#F43F5E", "#F59E0B", "#06B6D4", "#8B5CF6", "#EC4899", "#3B82F6")
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = if (isDark) Color(0x1AFFFFFF) else Color(0x73FFFFFF),
+        unfocusedContainerColor = if (isDark) Color(0x0FFFFFFF) else Color(0x52FFFFFF),
+        focusedBorderColor = if (isDark) AppleIndigoLight else AppleIndigo,
+        unfocusedBorderColor = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A),
+        focusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
+        unfocusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New ${type.capitalize()} Category", fontWeight = FontWeight.Bold) },
+        shape = RoundedCornerShape(26.dp),
+        containerColor = if (isDark) SolidFallbackDark else SolidFallbackLight,
+        title = {
+            Text(
+                "New ${type.capitalize()} Category",
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextPrimaryDark else TextPrimaryLight
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Category Name") },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Text("Select Icon", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "Select Icon",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) TextMutedDark else TextMutedLight
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(icons) { iconName ->
                         val isSelected = selectedIcon == iconName
                         Surface(
                             shape = CircleShape,
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            color = if (isSelected) (if (isDark) AppleIndigoLight else AppleIndigo) else (if (isDark) Color(0x1AFFFFFF) else Color(0x1F0F172A)),
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+                                if (isSelected) Color.White.copy(alpha = 0.8f) else Color.Transparent
                             ),
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(42.dp)
                                 .clickable { selectedIcon = iconName }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     getIconVector(iconName),
                                     contentDescription = iconName,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = if (isSelected) Color.White else (if (isDark) TextPrimaryDark else TextPrimaryLight),
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
                 }
 
-                Text("Select Color", style = MaterialTheme.typography.labelSmall)
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Select Color",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) TextMutedDark else TextMutedLight
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(colors) { hex ->
                         val isSelected = selectedColor == hex
-                        val c = runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(IndigoPrimary)
+                        val c = runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(AppleIndigo)
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(c)
                                 .clickable { selectedColor = hex }
                                 .border(
                                     if (isSelected) 3.dp else 1.dp,
-                                    if (isSelected) Color.White else Color.Transparent,
+                                    if (isSelected) (if (isDark) Color.White else Color(0xFF0F172A)) else Color.Transparent,
                                     CircleShape
                                 )
                         )
@@ -323,19 +329,21 @@ fun AddCategoryDialog(
             }
         },
         confirmButton = {
-            Button(
+            GlassGradientButton(
+                text = "Save Category",
                 onClick = {
                     if (name.isNotBlank()) onSave(name.trim(), selectedIcon, selectedColor)
                 },
                 enabled = name.isNotBlank(),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text("Save Category")
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    "Cancel",
+                    color = if (isDark) TextMutedDark else TextMutedLight
+                )
             }
         }
     )

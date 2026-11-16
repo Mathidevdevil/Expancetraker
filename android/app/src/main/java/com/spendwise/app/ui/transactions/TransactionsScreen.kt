@@ -2,7 +2,9 @@ package com.spendwise.app.ui.transactions
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.ui.components.CategoryIconView
+import com.spendwise.app.ui.components.glass.GlassIconButton
+import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.theme.*
 import com.spendwise.app.util.CurrencyFormatter
 
@@ -31,7 +35,8 @@ import com.spendwise.app.util.CurrencyFormatter
 @Composable
 fun TransactionsScreen(
     viewModel: TransactionsViewModel,
-    onOpenQuickAdd: () -> Unit
+    onOpenQuickAdd: () -> Unit,
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
     val state by viewModel.uiState.collectAsState()
     val haptic = LocalHapticFeedback.current
@@ -44,7 +49,7 @@ fun TransactionsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 18.dp)
     ) {
         Spacer(modifier = Modifier.height(18.dp))
@@ -60,45 +65,46 @@ fun TransactionsScreen(
                     text = "Activity",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
                 Text(
                     text = "${state.transactions.size} transactions recorded",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isDark) TextMutedDark else TextMutedLight
                 )
             }
 
-            // Quick Add icon button in header
-            FilledTonalIconButton(
+            // Quick Add glass icon button
+            GlassIconButton(
                 onClick = onOpenQuickAdd,
-                shape = RoundedCornerShape(14.dp),
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+                size = 42.dp,
+                isDark = isDark
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add",
+                    tint = if (isDark) AppleIndigoLight else AppleIndigo
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // 2026 Calm Search Bar
+        // Apple Liquid Glass Search Bar
         OutlinedTextField(
             value = state.searchQuery,
             onValueChange = { viewModel.onSearchQueryChanged(it) },
             placeholder = {
                 Text(
                     "Search notes, categories, trips...",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isDark) TextTertiaryDark else TextTertiaryLight
                 )
             },
             leadingIcon = {
                 Icon(
                     Icons.Default.Search,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (isDark) TextMutedDark else TextMutedLight
                 )
             },
             trailingIcon = {
@@ -107,7 +113,7 @@ fun TransactionsScreen(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Clear",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (isDark) TextMutedDark else TextMutedLight
                         )
                     }
                 }
@@ -115,81 +121,71 @@ fun TransactionsScreen(
             singleLine = true,
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                focusedContainerColor = if (isDark) Color(0x1AFFFFFF) else Color(0x73FFFFFF),
+                unfocusedContainerColor = if (isDark) Color(0x0FFFFFFF) else Color(0x52FFFFFF),
+                focusedBorderColor = if (isDark) AppleIndigoLight else AppleIndigo,
+                unfocusedBorderColor = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A),
+                focusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
+                unfocusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight
             ),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Filter Chips Row
+        // Filter Glass Chips Row
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             item {
-                FilterChip(
-                    selected = state.filterType == "all",
+                GlassFilterChip(
+                    label = "All",
+                    isSelected = state.filterType == "all",
+                    selectedColor = if (isDark) AppleIndigoLight else AppleIndigo,
+                    isDark = isDark,
                     onClick = {
                         viewModel.onFilterTypeChanged("all")
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    label = { Text("All") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
-                    )
+                    }
                 )
             }
             item {
-                FilterChip(
-                    selected = state.filterType == "expense",
+                GlassFilterChip(
+                    label = "Expenses",
+                    isSelected = state.filterType == "expense",
+                    selectedColor = ExpenseRose,
+                    isDark = isDark,
                     onClick = {
                         viewModel.onFilterTypeChanged("expense")
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    label = { Text("Expenses") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = ExpenseRose,
-                        selectedLabelColor = Color.White
-                    )
+                    }
                 )
             }
             item {
-                FilterChip(
-                    selected = state.filterType == "income",
+                GlassFilterChip(
+                    label = "Incomes",
+                    isSelected = state.filterType == "income",
+                    selectedColor = IncomeEmerald,
+                    isDark = isDark,
                     onClick = {
                         viewModel.onFilterTypeChanged("income")
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    label = { Text("Incomes") },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = IncomeEmerald,
-                        selectedLabelColor = Color.White
-                    )
+                    }
                 )
             }
             items(state.categories, key = { it.id }) { cat ->
                 val isSelected = state.filterCategoryId == cat.id
-                FilterChip(
-                    selected = isSelected,
+                GlassFilterChip(
+                    label = cat.name,
+                    isSelected = isSelected,
+                    selectedColor = if (isDark) AppleIndigoLight else AppleIndigo,
+                    isDark = isDark,
                     onClick = {
                         val newId = if (isSelected) null else cat.id
                         viewModel.onFilterCategoryChanged(newId)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    label = { Text(cat.name) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.primary
-                    )
+                    }
                 )
             }
         }
@@ -201,7 +197,7 @@ fun TransactionsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 100.dp),
+                    .padding(bottom = 120.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -210,14 +206,14 @@ fun TransactionsScreen(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        color = if (isDark) Color(0x1AFFFFFF) else Color(0x2E0F172A),
                         modifier = Modifier.size(64.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Default.SearchOff,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isDark) TextMutedDark else TextMutedLight,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -226,19 +222,19 @@ fun TransactionsScreen(
                         text = "No matching transactions",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = if (isDark) TextPrimaryDark else TextPrimaryLight
                     )
                     Text(
                         text = "Try adjusting your filters or search term",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isDark) TextMutedDark else TextMutedLight
                     )
                 }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 104.dp), // Safe margin so FAB never obstructs items
+                contentPadding = PaddingValues(bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 groupedTransactions.forEach { (dateHeader, txList) ->
@@ -248,7 +244,7 @@ fun TransactionsScreen(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isDark) TextMutedDark else TextMutedLight,
                             modifier = Modifier.padding(top = 8.dp, start = 4.dp, bottom = 2.dp)
                         )
                     }
@@ -257,6 +253,7 @@ fun TransactionsScreen(
                         TransactionRowItem(
                             item = item,
                             currencySymbol = state.currencySymbol,
+                            isDark = isDark,
                             onDelete = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 viewModel.deleteTransaction(item.transaction.id)
@@ -269,11 +266,49 @@ fun TransactionsScreen(
     }
 }
 
+@Composable
+fun GlassFilterChip(
+    label: String,
+    isSelected: Boolean,
+    selectedColor: Color,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val fill = if (isSelected) {
+        selectedColor
+    } else {
+        if (isDark) GlassFillDark else GlassFillLight
+    }
+    val borderBrush = if (isSelected) {
+        if (isDark) DarkGlassLensBorderBrush else LightGlassLensBorderBrush
+    } else {
+        if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(fill, RoundedCornerShape(12.dp))
+            .border(1.dp, borderBrush, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) Color.White else if (isDark) TextPrimaryDark else TextPrimaryLight
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionRowItem(
     item: TransactionWithDetails,
     currencySymbol: String,
+    isDark: Boolean,
     onDelete: () -> Unit
 ) {
     val isIncome = item.transaction.type == "income"
@@ -297,7 +332,7 @@ fun TransactionRowItem(
                 targetValue = if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) {
                     ExpenseRose
                 } else {
-                    MaterialTheme.colorScheme.surfaceVariant
+                    if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
                 },
                 label = "swipeBg"
             )
@@ -305,7 +340,7 @@ fun TransactionRowItem(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(color)
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
@@ -318,10 +353,8 @@ fun TransactionRowItem(
             }
         }
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        GlassRow(
+            isDark = isDark,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -333,7 +366,7 @@ fun TransactionRowItem(
             ) {
                 CategoryIconView(
                     iconName = item.category?.icon ?: "Tag",
-                    colorHex = item.category?.color ?: "#6366F1",
+                    colorHex = item.category?.color ?: "#5B4BE8",
                     size = 42.dp
                 )
 
@@ -342,14 +375,14 @@ fun TransactionRowItem(
                         text = item.transaction.note?.takeIf { it.isNotBlank() } ?: (item.category?.name ?: "Transaction"),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = if (isDark) TextPrimaryDark else TextPrimaryLight,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "${item.category?.name ?: "General"} • ${item.transaction.paymentMethod}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isDark) TextMutedDark else TextMutedLight,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -367,7 +400,7 @@ fun TransactionRowItem(
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (isIncome) IncomeEmerald else MaterialTheme.colorScheme.onBackground,
+                        color = if (isIncome) IncomeEmerald else if (isDark) TextPrimaryDark else TextPrimaryLight,
                         maxLines = 1
                     )
 
@@ -378,7 +411,7 @@ fun TransactionRowItem(
                         Icon(
                             Icons.Default.DeleteOutline,
                             contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            tint = if (isDark) TextMutedDark.copy(alpha = 0.5f) else TextMutedLight.copy(alpha = 0.5f),
                             modifier = Modifier.size(18.dp)
                         )
                     }

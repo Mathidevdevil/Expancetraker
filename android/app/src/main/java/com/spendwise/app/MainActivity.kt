@@ -5,15 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.*
@@ -24,6 +22,10 @@ import com.spendwise.app.ui.budgets.BudgetsViewModel
 import com.spendwise.app.ui.categories.CategoriesScreen
 import com.spendwise.app.ui.categories.CategoriesViewModel
 import com.spendwise.app.ui.components.QuickAddBottomSheet
+import com.spendwise.app.ui.components.glass.AuroraBackground
+import com.spendwise.app.ui.components.glass.GlassFloatingAddButton
+import com.spendwise.app.ui.components.glass.LiquidGlassBottomBar
+import com.spendwise.app.ui.components.glass.LiquidTabItem
 import com.spendwise.app.ui.dashboard.DashboardScreen
 import com.spendwise.app.ui.dashboard.DashboardViewModel
 import com.spendwise.app.ui.reports.ReportsScreen
@@ -38,7 +40,7 @@ import com.spendwise.app.ui.trips.TripsViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Dashboard : Screen("dashboard", "Overview", Icons.Default.Home)
+    object Dashboard : Screen("dashboard", "Overview", Icons.Default.AccountBalanceWallet)
     object Transactions : Screen("transactions", "Activity", Icons.Default.SwapHoriz)
     object Budgets : Screen("budgets", "Budgets", Icons.Default.PieChart)
     object Trips : Screen("trips", "Travel", Icons.Default.Flight)
@@ -80,147 +82,142 @@ fun MainAppScaffold(
     var isQuickAddOpen by remember { mutableStateOf(false) }
     val dashState by dashboardViewModel.uiState.collectAsState()
 
-    val bottomNavItems = listOf(
-        Screen.Dashboard,
-        Screen.Transactions,
-        Screen.Budgets,
-        Screen.Trips,
-        Screen.Categories
+    // 4 Streamlined Tabs: Overview, Activity, Budgets, Travel
+    // Categories is cleanly relocated into Settings (accessed from top profile avatar)
+    val bottomTabs = listOf(
+        LiquidTabItem(Screen.Dashboard.route, "Overview", Icons.Default.AccountBalanceWallet),
+        LiquidTabItem(Screen.Transactions.route, "Activity", Icons.Default.SwapHoriz),
+        LiquidTabItem(Screen.Budgets.route, "Budgets", Icons.Default.PieChart),
+        LiquidTabItem(Screen.Trips.route, "Travel", Icons.Default.Flight)
     )
 
-    val showBottomBar = currentRoute != Screen.Auth.route
+    val activeRoute = currentRoute ?: Screen.Dashboard.route
+    val isMainTabScreen = activeRoute in listOf(
+        Screen.Dashboard.route,
+        Screen.Transactions.route,
+        Screen.Budgets.route,
+        Screen.Trips.route
+    )
+    val showBottomBar = activeRoute != Screen.Auth.route && isMainTabScreen
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp,
-                    windowInsets = WindowInsets.navigationBars
-                ) {
-                    bottomNavItems.forEach { screen ->
-                        val isSelected = currentRoute == screen.route
-                        NavigationBarItem(
-                            icon = {
-                                Icon(
-                                    screen.icon,
-                                    contentDescription = screen.title
-                                )
-                            },
-                            label = {
-                                Text(
-                                    screen.title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            selected = isSelected,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            onClick = {
-                                if (currentRoute != screen.route) {
-                                    navController.navigate(screen.route) {
-                                        popUpTo(Screen.Dashboard.route) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 1. Living Aurora Chromatic Backdrop
+        AuroraBackground(isDark = isDark) {
+            val startDestination = if (dashboardViewModel.isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
+
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                composable(Screen.Auth.route) {
+                    val vm: AuthViewModel = hiltViewModel()
+                    AuthScreen(
+                        viewModel = vm,
+                        onAuthSuccess = {
+                            navController.navigate(Screen.Dashboard.route) {
+                                popUpTo(Screen.Auth.route) { inclusive = true }
                             }
-                        )
-                    }
+                        },
+                        isDark = isDark
+                    )
+                }
+                composable(Screen.Dashboard.route) {
+                    DashboardScreen(
+                        viewModel = dashboardViewModel,
+                        onNavigateToTransactions = { navController.navigate(Screen.Transactions.route) },
+                        onNavigateToBudgets = { navController.navigate(Screen.Budgets.route) },
+                        onNavigateToTrips = { navController.navigate(Screen.Trips.route) },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                        isDark = isDark,
+                        onToggleTheme = {
+                            dashboardViewModel.setThemeMode(if (isDark) "light" else "dark")
+                        }
+                    )
+                }
+                composable(Screen.Transactions.route) {
+                    val vm: TransactionsViewModel = hiltViewModel()
+                    TransactionsScreen(
+                        viewModel = vm,
+                        onOpenQuickAdd = { isQuickAddOpen = true },
+                        isDark = isDark
+                    )
+                }
+                composable(Screen.Budgets.route) {
+                    val vm: BudgetsViewModel = hiltViewModel()
+                    BudgetsScreen(
+                        viewModel = vm,
+                        isDark = isDark
+                    )
+                }
+                composable(Screen.Trips.route) {
+                    val vm: TripsViewModel = hiltViewModel()
+                    TripsScreen(
+                        viewModel = vm,
+                        isDark = isDark
+                    )
+                }
+                composable(Screen.Categories.route) {
+                    val vm: CategoriesViewModel = hiltViewModel()
+                    CategoriesScreen(
+                        viewModel = vm,
+                        isDark = isDark
+                    )
+                }
+                composable(Screen.Reports.route) {
+                    val vm: ReportsViewModel = hiltViewModel()
+                    ReportsScreen(viewModel = vm)
+                }
+                composable(Screen.Settings.route) {
+                    val vm: SettingsViewModel = hiltViewModel()
+                    SettingsScreen(
+                        viewModel = vm,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToCategories = { navController.navigate(Screen.Categories.route) },
+                        onLogout = {
+                            dashboardViewModel.logout()
+                            navController.navigate(Screen.Auth.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    )
                 }
             }
-        },
-        floatingActionButton = {
-            // Strictly render FAB on Dashboard so it never obstructs content on other screens
-            if (showBottomBar && currentRoute == Screen.Dashboard.route) {
-                FloatingActionButton(
+        }
+
+        // 2. Liquid Glass Floating Bottom Bar & Floating Add FAB
+        if (showBottomBar) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                    .navigationBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                LiquidGlassBottomBar(
+                    tabs = bottomTabs,
+                    currentRoute = activeRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(Screen.Dashboard.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    isDark = isDark
+                )
+
+                GlassFloatingAddButton(
                     onClick = { isQuickAddOpen = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Quick Add Transaction")
-                }
-            }
-        }
-    ) { innerPadding ->
-        val startDestination = if (dashboardViewModel.isLoggedIn) Screen.Dashboard.route else Screen.Auth.route
-
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Auth.route) {
-                val vm: AuthViewModel = hiltViewModel()
-                AuthScreen(
-                    viewModel = vm,
-                    onAuthSuccess = {
-                        navController.navigate(Screen.Dashboard.route) {
-                            popUpTo(Screen.Auth.route) { inclusive = true }
-                        }
-                    }
-                )
-            }
-            composable(Screen.Dashboard.route) {
-                DashboardScreen(
-                    viewModel = dashboardViewModel,
-                    onNavigateToTransactions = { navController.navigate(Screen.Transactions.route) },
-                    onNavigateToBudgets = { navController.navigate(Screen.Budgets.route) },
-                    onNavigateToTrips = { navController.navigate(Screen.Trips.route) },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    isDark = isDark,
-                    onToggleTheme = {
-                        dashboardViewModel.setThemeMode(if (isDark) "light" else "dark")
-                    }
-                )
-            }
-            composable(Screen.Transactions.route) {
-                val vm: TransactionsViewModel = hiltViewModel()
-                TransactionsScreen(
-                    viewModel = vm,
-                    onOpenQuickAdd = { isQuickAddOpen = true }
-                )
-            }
-            composable(Screen.Budgets.route) {
-                val vm: BudgetsViewModel = hiltViewModel()
-                BudgetsScreen(viewModel = vm)
-            }
-            composable(Screen.Trips.route) {
-                val vm: TripsViewModel = hiltViewModel()
-                TripsScreen(viewModel = vm)
-            }
-            composable(Screen.Categories.route) {
-                val vm: CategoriesViewModel = hiltViewModel()
-                CategoriesScreen(viewModel = vm)
-            }
-            composable(Screen.Reports.route) {
-                val vm: ReportsViewModel = hiltViewModel()
-                ReportsScreen(viewModel = vm)
-            }
-            composable(Screen.Settings.route) {
-                val vm: SettingsViewModel = hiltViewModel()
-                SettingsScreen(
-                    viewModel = vm,
-                    onBack = { navController.popBackStack() },
-                    onLogout = {
-                        dashboardViewModel.logout()
-                        navController.navigate(Screen.Auth.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    }
+                    isDark = isDark
                 )
             }
         }
 
+        // 3. Quick Add Transaction Bottom Sheet
         if (isQuickAddOpen) {
             QuickAddBottomSheet(
                 onDismiss = { isQuickAddOpen = false },

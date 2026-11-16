@@ -2,7 +2,6 @@ package com.spendwise.app.ui.dashboard
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,15 +9,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,19 +23,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.ui.components.CategoryIconView
 import com.spendwise.app.ui.components.EditProfileDialog
+import com.spendwise.app.ui.components.glass.GlassCard
+import com.spendwise.app.ui.components.glass.GlassIconButton
+import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.theme.*
 import com.spendwise.app.util.CurrencyFormatter
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import java.util.Calendar
 
 @Composable
@@ -49,21 +44,22 @@ fun DashboardScreen(
     onNavigateToTransactions: () -> Unit,
     onNavigateToBudgets: () -> Unit,
     onNavigateToTrips: () -> Unit,
-    onNavigateToSettings: () -> Unit = {},
-    isDark: Boolean = true,
-    onToggleTheme: () -> Unit = {}
+    onNavigateToSettings: () -> Unit,
+    isDark: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
-    var isEditProfileDialogOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+    var isEditProfileDialogOpen by remember { mutableStateOf(false) }
 
-    // Determine greeting
+    // Time-based greeting
     val greeting = remember {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         when (hour) {
             in 5..11 -> "Good morning"
             in 12..16 -> "Good afternoon"
-            else -> "Good evening"
+            in 17..21 -> "Good evening"
+            else -> "Good night"
         }
     }
 
@@ -75,12 +71,12 @@ fun DashboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 20.dp, bottom = 104.dp), // Generous padding so FAB never covers content
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        contentPadding = PaddingValues(top = 18.dp, bottom = 120.dp), // 120dp ensures floating bottom bar never covers content
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Top Header: Greeting + Brand
+        // 1. Top Header: Greeting, Brand & Quick Glass Actions
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -93,7 +89,7 @@ fun DashboardScreen(
                         text = "$greeting, $firstName 👋",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isDark) TextMutedDark else TextMutedLight,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -101,64 +97,51 @@ fun DashboardScreen(
                         text = "Spendwise",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = if (isDark) TextPrimaryDark else TextPrimaryLight
                     )
                 }
 
-                // Profile Avatar & Action Icons
+                // Profile Avatar & Glass Action Icons
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Quick Dark/Light Mode Toggle Icon
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onToggleTheme()
-                            }
+                    // Quick Dark/Light Mode Glass Icon
+                    GlassIconButton(
+                        onClick = onToggleTheme,
+                        size = 42.dp,
+                        isDark = isDark
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                contentDescription = if (isDark) "Switch to Light Mode" else "Switch to Dark Mode",
-                                tint = if (isDark) WarningAmber else IndigoPrimaryDark,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDark) "Switch to Light Mode" else "Switch to Dark Mode",
+                            tint = if (isDark) WarningAmber else AppleIndigo,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
-                    // Quick Settings Icon
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onNavigateToSettings()
-                            }
+                    // Settings Glass Icon
+                    GlassIconButton(
+                        onClick = onNavigateToSettings,
+                        size = 42.dp,
+                        isDark = isDark
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = if (isDark) TextMutedDark else TextMutedLight,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
-                    // Profile Avatar / Indicator pill (Tappable to Edit Profile)
+                    // Profile Avatar Glass Lens (Tappable to Edit Profile)
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                        color = if (isDark) AppleIndigo.copy(alpha = 0.25f) else AppleIndigo.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp,
+                            if (isDark) AppleIndigoLight else AppleIndigo
+                        ),
                         modifier = Modifier
                             .size(42.dp)
                             .clickable {
@@ -171,7 +154,7 @@ fun DashboardScreen(
                                 text = state.userProfile.initials,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (isDark) AppleIndigoLight else AppleIndigo
                             )
                         }
                     }
@@ -179,13 +162,11 @@ fun DashboardScreen(
             }
         }
 
-        // 2. 2026 Calm Hero Section: Total Balance & Trend Indicator (Revolut/Copilot Style)
+        // 2. Apple Liquid Glass Hero Card: Total Balance & Trend Indicator
         item {
-            Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                shadowElevation = 2.dp,
+            GlassCard(
+                isDark = isDark,
+                isElevated = true,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -199,16 +180,16 @@ fun DashboardScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.2.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isDark) TextMutedDark else TextMutedLight
                     )
 
-                    // Hero Large Balance with Indian grouping and -₹ format
+                    // Hero Large Balance with Tabular Digits & Indian grouping
                     Text(
                         text = CurrencyFormatter.format(state.totalBalance, state.currencySymbol),
                         fontSize = 38.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = (-0.5).sp,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = if (isDark) TextPrimaryDark else TextPrimaryLight
                     )
 
                     // Monthly Trend Indicator Pill
@@ -217,9 +198,13 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val isNetPositive = state.monthlyIncome >= state.monthlyExpense
+                        val trendColor = if (isNetPositive) IncomeEmerald else ExpenseRose
+                        val netChange = state.monthlyIncome - state.monthlyExpense
+
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isNetPositive) IncomeEmerald.copy(alpha = 0.15f) else ExpenseRose.copy(alpha = 0.15f)
+                            color = trendColor.copy(alpha = 0.14f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, trendColor.copy(alpha = 0.25f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -229,15 +214,14 @@ fun DashboardScreen(
                                 Icon(
                                     imageVector = if (isNetPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                     contentDescription = null,
-                                    tint = if (isNetPositive) IncomeEmerald else ExpenseRose,
+                                    tint = trendColor,
                                     modifier = Modifier.size(14.dp)
                                 )
-                                val netChange = state.monthlyIncome - state.monthlyExpense
                                 Text(
                                     text = "${CurrencyFormatter.formatWithSign(netChange, state.currencySymbol)} this month",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isNetPositive) IncomeEmerald else ExpenseRose
+                                    color = trendColor
                                 )
                             }
                         }
@@ -245,24 +229,22 @@ fun DashboardScreen(
                         Text(
                             text = "vs previous period",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isDark) TextMutedDark else TextMutedLight
                         )
                     }
                 }
             }
         }
 
-        // 3. Compact Stat Cards with Mini Sparklines (Income & Expense)
+        // 3. Compact Glass Stat Cards with Mini Sparklines (Income & Expense)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Inflow Stat Card
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                // Inflow Glass Card
+                GlassCard(
+                    isDark = isDark,
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(
@@ -278,7 +260,7 @@ fun DashboardScreen(
                                 text = "Monthly Inflow",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isDark) TextMutedDark else TextMutedLight
                             )
                             Box(
                                 modifier = Modifier
@@ -305,11 +287,9 @@ fun DashboardScreen(
                     }
                 }
 
-                // Outflow Stat Card
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                // Outflow Glass Card
+                GlassCard(
+                    isDark = isDark,
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(
@@ -325,7 +305,7 @@ fun DashboardScreen(
                                 text = "Monthly Outflow",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isDark) TextMutedDark else TextMutedLight
                             )
                             Box(
                                 modifier = Modifier
@@ -359,10 +339,8 @@ fun DashboardScreen(
         // 4. Category Spending Donut Chart + Legend
         if (state.topCategories.isNotEmpty()) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                GlassCard(
+                    isDark = isDark,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -375,7 +353,7 @@ fun DashboardScreen(
                             text = "Spending by Category",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = if (isDark) TextPrimaryDark else TextPrimaryLight
                         )
 
                         Row(
@@ -397,13 +375,13 @@ fun DashboardScreen(
                                         text = "${state.topCategories.firstOrNull()?.percentage?.toInt() ?: 0}%",
                                         fontWeight = FontWeight.Black,
                                         fontSize = 16.sp,
-                                        color = MaterialTheme.colorScheme.onBackground
+                                        color = if (isDark) TextPrimaryDark else TextPrimaryLight
                                     )
                                     Text(
                                         text = "Top Share",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isDark) TextMutedDark else TextMutedLight
                                     )
                                 }
                             }
@@ -435,7 +413,7 @@ fun DashboardScreen(
                                                 text = catSpend.category?.name ?: "Other",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onBackground,
+                                                color = if (isDark) TextPrimaryDark else TextPrimaryLight,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -445,7 +423,7 @@ fun DashboardScreen(
                                             text = "${CurrencyFormatter.format(catSpend.amount, state.currencySymbol, false)} (${catSpend.percentage.toInt()}%)",
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (isDark) TextMutedDark else TextMutedLight
                                         )
                                     }
                                 }
@@ -460,13 +438,10 @@ fun DashboardScreen(
         if (state.activeTrips.isNotEmpty()) {
             item {
                 val trip = state.activeTrips.first()
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToTrips() }
+                GlassCard(
+                    isDark = isDark,
+                    onClick = onNavigateToTrips,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
@@ -493,20 +468,19 @@ fun DashboardScreen(
                                     text = "Upcoming Travel Plan",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
+                                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
                                 )
                             }
                             Text(
                                 text = "View All",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (isDark) AppleIndigoLight else AppleIndigo
                             )
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        GlassRow(
+                            isDark = isDark,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
@@ -524,7 +498,7 @@ fun DashboardScreen(
                                         text = trip.destination,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onBackground
+                                        color = if (isDark) TextPrimaryDark else TextPrimaryLight
                                     )
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
@@ -547,7 +521,7 @@ fun DashboardScreen(
                                     Text(
                                         text = "Budget: ${CurrencyFormatter.format(trip.budget, state.currencySymbol, false)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isDark) TextMutedDark else TextMutedLight
                                     )
                                     Text(
                                         text = "Target Spend Plan",
@@ -574,13 +548,13 @@ fun DashboardScreen(
                     text = "Recent Activity",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
                 Text(
                     text = "See All",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isDark) AppleIndigoLight else AppleIndigo,
                     modifier = Modifier.clickable { onNavigateToTransactions() }
                 )
             }
@@ -588,10 +562,8 @@ fun DashboardScreen(
 
         if (state.recentTransactions.isEmpty()) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                GlassCard(
+                    isDark = isDark,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(
@@ -600,20 +572,41 @@ fun DashboardScreen(
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(36.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isDark) Color(0x1AFFFFFF) else Color(0x1F0F172A),
+                                modifier = Modifier.size(54.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.ReceiptLong,
+                                        contentDescription = null,
+                                        tint = if (isDark) TextMutedDark else TextMutedLight,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
                             Text(
                                 text = "No transactions yet",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                            )
+                            Text(
+                                text = "Tap the '+' button to log your first expense",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isDark) TextMutedDark else TextMutedLight
                             )
                         }
                     }
                 }
             }
         } else {
-            // Grouped by friendly date
+            // Grouped by friendly date with 60fps GlassRow rendering
             groupedTransactions.forEach { (dateHeader, txs) ->
                 item {
                     Text(
@@ -621,20 +614,17 @@ fun DashboardScreen(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isDark) TextMutedDark else TextMutedLight,
                         modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                     )
                 }
 
                 items(txs, key = { it.transaction.id }) { item ->
                     val isIncome = item.transaction.type == "income"
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToTransactions() }
+                    GlassRow(
+                        isDark = isDark,
+                        onClick = onNavigateToTransactions,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
@@ -645,7 +635,7 @@ fun DashboardScreen(
                         ) {
                             CategoryIconView(
                                 iconName = item.category?.icon ?: "Tag",
-                                colorHex = item.category?.color ?: "#6366F1",
+                                colorHex = item.category?.color ?: "#5B4BE8",
                                 size = 42.dp
                             )
 
@@ -654,14 +644,14 @@ fun DashboardScreen(
                                     text = item.transaction.note?.takeIf { it.isNotBlank() } ?: (item.category?.name ?: "Transaction"),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onBackground,
+                                    color = if (isDark) TextPrimaryDark else TextPrimaryLight,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "${item.category?.name ?: "General"} • ${item.transaction.paymentMethod}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (isDark) TextMutedDark else TextMutedLight,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -675,7 +665,7 @@ fun DashboardScreen(
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isIncome) IncomeEmerald else MaterialTheme.colorScheme.onBackground
+                                color = if (isIncome) IncomeEmerald else if (isDark) TextPrimaryDark else TextPrimaryLight
                             )
                         }
                     }
@@ -775,9 +765,9 @@ fun parseCategoryColor(colorHex: String?): Color {
         if (!colorHex.isNullOrBlank()) {
             Color(android.graphics.Color.parseColor(colorHex))
         } else {
-            IndigoPrimary
+            AppleIndigo
         }
-    } catch (e: Exception) {
-        IndigoPrimary
+    } catch (_: Exception) {
+        AppleIndigo
     }
 }

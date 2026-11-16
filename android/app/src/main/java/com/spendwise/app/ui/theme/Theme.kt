@@ -12,66 +12,68 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val FintechDarkColorScheme = darkColorScheme(
-    primary = IndigoPrimaryLight,
+private val LiquidGlassDarkColorScheme = darkColorScheme(
+    primary = AppleIndigoLight,
     onPrimary = Color.White,
-    primaryContainer = DarkSurface3,
-    onPrimaryContainer = IndigoPrimaryLight,
-    secondary = IncomeEmerald,
+    primaryContainer = Color(0x2BFFFFFF),
+    onPrimaryContainer = AppleIndigoLight,
+    secondary = IncomeEmeraldLuminous,
     onSecondary = Color.White,
-    secondaryContainer = DarkSurface2,
+    secondaryContainer = Color(0x1FFFFFFF),
     onSecondaryContainer = Color.White,
     tertiary = TravelCyan,
     onTertiary = Color.White,
-    background = DarkBase,
+    background = CanvasBaseDark,
     onBackground = TextPrimaryDark,
-    surface = DarkSurface1,
+    surface = GlassFillDark,
     onSurface = TextPrimaryDark,
-    surfaceVariant = DarkSurface2,
+    surfaceVariant = Color(0x21FFFFFF),
     onSurfaceVariant = TextMutedDark,
-    outline = DarkBorder,
-    outlineVariant = DarkBorderStrong,
-    error = ExpenseRose,
+    outline = Color(0x1FFFFFFF),
+    outlineVariant = Color(0x33FFFFFF),
+    error = ExpenseRoseLuminous,
     onError = Color.White
 )
 
-private val FintechLightColorScheme = lightColorScheme(
-    primary = IndigoPrimaryDark,
+private val LiquidGlassLightColorScheme = lightColorScheme(
+    primary = AppleIndigo,
     onPrimary = Color.White,
-    primaryContainer = LightSurface3,
-    onPrimaryContainer = IndigoPrimaryDark,
+    primaryContainer = Color(0xCCEEF2FF),
+    onPrimaryContainer = AppleIndigo,
     secondary = IncomeEmerald,
     onSecondary = Color.White,
-    secondaryContainer = LightSurface2,
+    secondaryContainer = Color(0xB3FFFFFF),
     onSecondaryContainer = TextPrimaryLight,
     tertiary = TravelCyan,
     onTertiary = Color.White,
-    background = LightBase,
+    background = CanvasBaseLight,
     onBackground = TextPrimaryLight,
-    surface = LightSurface1,
+    surface = GlassFillLight,
     onSurface = TextPrimaryLight,
-    surfaceVariant = LightSurface2,
+    surfaceVariant = Color(0x80F1F3F9),
     onSurfaceVariant = TextMutedLight,
-    outline = LightBorder,
-    outlineVariant = LightBorderStrong,
+    outline = Color(0x260F172A),
+    outlineVariant = Color(0x400F172A),
     error = ExpenseRose,
     onError = Color.White
 )
 
 @Composable
 fun SpendwiseTheme(
-    darkTheme: Boolean = true, // Default to 2026 calm dark mode
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) FintechDarkColorScheme else FintechLightColorScheme
+    val colorScheme = if (darkTheme) LiquidGlassDarkColorScheme else LiquidGlassLightColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = colorScheme.background.toArgb()
-                window.navigationBarColor = colorScheme.surface.toArgb()
+                // Edge-to-edge transparent system bars for seamless aurora backdrop
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                window.statusBarColor = Color.Transparent.toArgb()
+                window.navigationBarColor = Color.Transparent.toArgb()
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !darkTheme
                 insetsController.isAppearanceLightNavigationBars = !darkTheme
