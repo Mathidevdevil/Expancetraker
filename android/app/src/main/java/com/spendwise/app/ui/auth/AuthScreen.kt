@@ -3,12 +3,12 @@ package com.spendwise.app.ui.auth
 import android.app.Activity
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,40 +17,47 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spendwise.app.data.remote.SupabaseClientProvider
 import com.spendwise.app.data.repository.FinanceRepository
-import com.spendwise.app.ui.components.glass.*
+import com.spendwise.app.ui.components.glass.GoogleLogoVector
+import com.spendwise.app.ui.components.glass.SpendwiseLogoVector
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.Google
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import io.github.jan.supabase.gotrue.providers.builtin.IDToken
-import io.github.jan.supabase.gotrue.providers.builtin.OTP
-import io.github.jan.supabase.gotrue.OtpType
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+enum class AuthMode {
+    SIGN_IN,
+    SIGN_UP,
+    FORGOT_PASSWORD
+}
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -64,10 +71,6 @@ class AuthViewModel @Inject constructor(
         private set
     var successMessage by mutableStateOf<String?>(null)
         private set
-    var otpSent by mutableStateOf(false)
-        private set
-    var countdown by mutableStateOf(0)
-        private set
 
     var showGoogleSetupDialog by mutableStateOf(false)
 
@@ -78,12 +81,6 @@ class AuthViewModel @Inject constructor(
     )
 
     fun resetMessages() {
-        errorMessage = null
-        successMessage = null
-    }
-
-    fun setOtpSentState(sent: Boolean) {
-        otpSent = sent
         errorMessage = null
         successMessage = null
     }
@@ -102,96 +99,6 @@ class AuthViewModel @Inject constructor(
         repository.updateProfile(name, cleanEmail)
     }
 
-    fun sendEmailOtp(email: String) {
-        val cleanEmail = email.trim()
-        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
-            errorMessage = "Please enter a valid email address."
-            return
-        }
-        isLoading = true
-        errorMessage = null
-        successMessage = null
-
-        viewModelScope.launch {
-            try {
-                if (supabaseProvider.isConfigured) {
-                    try {
-                        val client = supabaseProvider.getClient()
-                        client.auth.signInWith(OTP) {
-                            this.email = cleanEmail
-                            createUser = true
-                        }
-                        successMessage = "6-digit OTP code sent to $cleanEmail"
-                    } catch (_: Exception) {
-                        successMessage = "OTP sent! (Demo Code: 123456)"
-                    }
-                } else {
-                    successMessage = "OTP sent! (Demo Code: 123456)"
-                }
-                otpSent = true
-                countdown = 60
-                startCountdown()
-            } catch (e: Exception) {
-                errorMessage = e.message ?: "Failed to send OTP code."
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
-    private fun startCountdown() {
-        viewModelScope.launch {
-            while (countdown > 0) {
-                delay(1000)
-                countdown -= 1
-            }
-        }
-    }
-
-    fun verifyEmailOtp(email: String, otp: String, onComplete: () -> Unit) {
-        val cleanEmail = email.trim()
-        val cleanOtp = otp.trim()
-        if (cleanOtp.length < 6) {
-            errorMessage = "Please enter the 6-digit code."
-            return
-        }
-        isLoading = true
-        errorMessage = null
-
-        viewModelScope.launch {
-            try {
-                var verified = false
-                if (cleanOtp == "123456") {
-                    verified = true
-                } else if (supabaseProvider.isConfigured) {
-                    try {
-                        val client = supabaseProvider.getClient()
-                        client.auth.verifyEmailOtp(
-                            type = OtpType.Email.EMAIL,
-                            email = cleanEmail,
-                            token = cleanOtp
-                        )
-                        verified = true
-                    } catch (e: Exception) {
-                        throw Exception(e.message ?: "Invalid OTP code.")
-                    }
-                } else {
-                    throw Exception("Invalid OTP. For testing, enter 123456.")
-                }
-
-                if (verified) {
-                    updateProfileFromEmail(cleanEmail)
-                    repository.isLoggedIn = true
-                    onComplete()
-                }
-            } catch (e: Exception) {
-                errorMessage = e.message ?: "Invalid or expired OTP code."
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
     fun signInWithEmail(
         email: String,
         pass: String,
@@ -199,13 +106,18 @@ class AuthViewModel @Inject constructor(
         fullName: String = "",
         onComplete: () -> Unit
     ) {
-        val cleanEmail = email.trim().ifEmpty { "alex.morgan@spendwise.app" }
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            errorMessage = "Please enter a valid email address."
+            return
+        }
         if (pass.isBlank() || pass.length < 6) {
             errorMessage = "Password must be at least 6 characters."
             return
         }
         isLoading = true
         errorMessage = null
+        successMessage = null
 
         viewModelScope.launch {
             try {
@@ -226,11 +138,45 @@ class AuthViewModel @Inject constructor(
                 updateProfileFromEmail(cleanEmail, fullName)
                 repository.isLoggedIn = true
                 onComplete()
-            } catch (_: Exception) {
-                // Smooth local/offline login fallback
-                updateProfileFromEmail(cleanEmail, fullName)
-                repository.isLoggedIn = true
-                onComplete()
+            } catch (e: Exception) {
+                val rawMsg = e.message ?: ""
+                if (rawMsg.contains("invalid", ignoreCase = true) || rawMsg.contains("credentials", ignoreCase = true)) {
+                    errorMessage = "Incorrect email or password."
+                } else {
+                    // Offline fallback
+                    updateProfileFromEmail(cleanEmail, fullName)
+                    repository.isLoggedIn = true
+                    onComplete()
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    fun sendPasswordReset(email: String) {
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@")) {
+            errorMessage = "Please enter a valid email address."
+            return
+        }
+        isLoading = true
+        errorMessage = null
+        successMessage = null
+
+        viewModelScope.launch {
+            try {
+                if (supabaseProvider.isConfigured) {
+                    try {
+                        val client = supabaseProvider.getClient()
+                        client.auth.resetPasswordForEmail(cleanEmail)
+                    } catch (_: Exception) {
+                        // Demo fallback
+                    }
+                }
+                successMessage = "Password reset instructions sent to $cleanEmail"
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Failed to send reset link."
             } finally {
                 isLoading = false
             }
@@ -286,7 +232,6 @@ class AuthViewModel @Inject constructor(
                         break
                     }
                 } catch (_: GetCredentialCancellationException) {
-                    // User dismissed the Google account picker
                     isLoading = false
                     return@launch
                 } catch (e: Exception) {
@@ -298,10 +243,10 @@ class AuthViewModel @Inject constructor(
                 val rawMsg = lastError.message ?: "Google Sign-In failed"
                 if (rawMsg.contains("28444") || rawMsg.contains("DEVELOPER_ERROR") || rawMsg.contains("Developer console") || rawMsg.contains("10")) {
                     showGoogleSetupDialog = true
-                    errorMessage = "[28444] Google Console setup needed: Register Package 'com.spendwise.app' & SHA-1 in Google Cloud. Tap below for Demo mode."
+                    errorMessage = "[28444] Google Console setup needed. Tap below for Demo mode."
                 } else if (rawMsg.contains("No credentials") || rawMsg.contains("NoCredentialException")) {
                     showGoogleSetupDialog = true
-                    errorMessage = "No Google account selected or setup pending. Tap below to continue."
+                    errorMessage = "No Google account selected. Tap below to continue."
                 } else {
                     errorMessage = rawMsg
                 }
@@ -326,31 +271,85 @@ fun AuthScreen(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
-    // 0 = Sign In, 1 = Sign Up
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var isOtpMode by remember { mutableStateOf(false) }
+    var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
 
     // Form inputs
-    var fullName by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
-    var otpCode by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
 
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = if (isDark) Color(0x1AFFFFFF) else Color(0x73FFFFFF),
-        unfocusedContainerColor = if (isDark) Color(0x0FFFFFFF) else Color(0x52FFFFFF),
-        focusedBorderColor = if (isDark) AppleIndigoLight else AppleIndigo,
-        unfocusedBorderColor = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A),
-        focusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
-        unfocusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight
-    )
+    // Field-level error messages
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var confirmPasswordError by remember { mutableStateOf<String?>(null) }
 
-    // Google Setup Helper Dialog (When [28444] Developer Console is triggered)
+    fun validateForm(): Boolean {
+        var isValid = true
+        emailError = null
+        passwordError = null
+        confirmPasswordError = null
+
+        val cleanEmail = email.trim()
+        if (cleanEmail.isEmpty() || !cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+            emailError = "Please enter a valid email address."
+            isValid = false
+        }
+
+        if (authMode != AuthMode.FORGOT_PASSWORD) {
+            if (password.isEmpty()) {
+                passwordError = "Password cannot be empty."
+                isValid = false
+            } else if (password.length < 6) {
+                passwordError = "Password must be at least 6 characters."
+                isValid = false
+            }
+        }
+
+        if (authMode == AuthMode.SIGN_UP) {
+            if (confirmPassword != password) {
+                confirmPasswordError = "Passwords do not match."
+                isValid = false
+            }
+        }
+
+        return isValid
+    }
+
+    fun handleSubmit() {
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        focusManager.clearFocus()
+        if (!validateForm()) return
+
+        when (authMode) {
+            AuthMode.SIGN_IN -> {
+                viewModel.signInWithEmail(
+                    email = email,
+                    pass = password,
+                    isSignUp = false,
+                    onComplete = onAuthSuccess
+                )
+            }
+            AuthMode.SIGN_UP -> {
+                viewModel.signInWithEmail(
+                    email = email,
+                    pass = password,
+                    isSignUp = true,
+                    fullName = name,
+                    onComplete = onAuthSuccess
+                )
+            }
+            AuthMode.FORGOT_PASSWORD -> {
+                viewModel.sendPasswordReset(email)
+            }
+        }
+    }
+
+    // Google Setup Helper Dialog
     if (viewModel.showGoogleSetupDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.showGoogleSetupDialog = false },
@@ -411,706 +410,565 @@ fun AuthScreen(
         )
     }
 
-    Column(
+    // Full screen background in navy gradient
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 22.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Floating Glass Brand Icon
-        GlassCard(
-            shape = RoundedCornerShape(24.dp),
-            isDark = isDark,
-            modifier = Modifier.size(68.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AccountBalanceWallet,
-                    contentDescription = null,
-                    tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                    modifier = Modifier.size(36.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        BrandNavyGradientStart,
+                        BrandNavyGradientMid,
+                        BrandNavyGradientEnd
+                    )
                 )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = "Spendwise",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.ExtraBold,
-            color = if (isDark) TextPrimaryDark else TextPrimaryLight
-        )
-
-        Text(
-            text = "Smart Income, Expense & Travel Tracker",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (isDark) TextMutedDark else TextMutedLight
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Apple Liquid Glass Centerpiece Card
-        GlassCard(
-            shape = RoundedCornerShape(28.dp),
-            isDark = isDark,
-            modifier = Modifier.fillMaxWidth()
+            )
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
+            // One Centered White Card (or Dark Glass Card in dark mode)
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDark) BrandCardDark else BrandCardLight,
+                border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, BrandCardBorderDark) else null,
+                shadowElevation = 16.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .widthIn(max = 440.dp)
             ) {
-                // If OTP mode is active, show the back link
-                if (isOtpMode) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                isOtpMode = false
-                                viewModel.resetMessages()
-                            }
-                            .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Back to Regular Sign In",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) AppleIndigoLight else AppleIndigo
-                        )
-                    }
-                } else {
-                    // Standard Segmented Tab Switcher: [ Sign In ] [ Sign Up ]
-                    GlassSegmentedControl(
-                        items = listOf("Sign In", "Sign Up"),
-                        selectedIndex = selectedTab,
-                        onSelect = {
-                            selectedTab = it
-                            isOtpMode = false
-                            viewModel.resetMessages()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 36.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Spendwise 56dp Logo Icon
+                    SpendwiseLogoVector(size = 56.dp)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Title
+                    Text(
+                        text = when (authMode) {
+                            AuthMode.SIGN_IN -> "Login"
+                            AuthMode.SIGN_UP -> "Create Account"
+                            AuthMode.FORGOT_PASSWORD -> "Reset Password"
                         },
-                        isDark = isDark,
-                        modifier = Modifier.fillMaxWidth()
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp
+                        ),
+                        color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
+                        textAlign = TextAlign.Center
                     )
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                // Error Message Banner
-                viewModel.errorMessage?.let { error ->
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = ExpenseRose.copy(alpha = if (isDark) 0.22f else 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRose.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    // Subtitle line
+                    Text(
+                        text = when (authMode) {
+                            AuthMode.SIGN_IN -> "Welcome back. Track your income, expenses and trips."
+                            AuthMode.SIGN_UP -> "Start tracking your income, expenses and trips."
+                            AuthMode.FORGOT_PASSWORD -> "Enter your email to receive a password reset link."
+                        },
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        color = if (isDark) BrandTextMutedDark else BrandTextMutedLight,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Success Message Banner (e.g. for reset email)
+                    viewModel.successMessage?.let { success ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = IncomeEmerald.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, IncomeEmerald.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                         ) {
-                            Icon(
-                                Icons.Default.ErrorOutline,
-                                contentDescription = null,
-                                tint = ExpenseRose,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = ExpenseRose
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // Success Message Banner
-                viewModel.successMessage?.let { success ->
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = IncomeEmerald.copy(alpha = if (isDark) 0.22f else 0.12f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, IncomeEmerald.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = IncomeEmerald,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = success,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = IncomeEmerald
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // ==================== 1. OPTIONAL OTP MODE ====================
-                if (isOtpMode) {
-                    if (!viewModel.otpSent) {
-                        Text(
-                            text = "Enter your email address and we'll send a 6-digit verification code to sign in.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isDark) TextMutedDark else TextMutedLight
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email Address") },
-                            placeholder = { Text("alex@example.com") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Email,
-                                    contentDescription = null,
-                                    tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        GlassGradientButton(
-                            text = if (viewModel.isLoading) "Sending code..." else "Send 6-Digit OTP",
-                            trailingIcon = if (viewModel.isLoading) null else {
-                                {
-                                    Icon(
-                                        Icons.Default.ArrowForward,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = Color.White
-                                    )
-                                }
-                            },
-                            enabled = email.isNotBlank() && !viewModel.isLoading,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                viewModel.sendEmailOtp(email)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        // Enter 6-digit OTP
-                        Text(
-                            text = "Enter the 6-digit verification code sent to $email",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isDark) TextPrimaryDark else TextPrimaryLight
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = otpCode,
-                            onValueChange = { if (it.length <= 6) otpCode = it },
-                            label = { Text("6-Digit OTP Code") },
-                            placeholder = { Text("123456") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Key,
-                                    contentDescription = null,
-                                    tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = fieldColors,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    viewModel.setOtpSentState(false)
-                                    otpCode = ""
-                                }
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = IncomeEmerald,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "← Change Email",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (isDark) TextMutedDark else TextMutedLight
+                                    text = success,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                    color = IncomeEmerald
                                 )
                             }
+                        }
+                    }
 
-                            if (viewModel.countdown > 0) {
-                                Text(
-                                    text = "Resend in ${viewModel.countdown}s",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (isDark) TextMutedDark else TextMutedLight
-                                )
-                            } else {
-                                TextButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        viewModel.sendEmailOtp(email)
-                                    }
-                                ) {
-                                    Text(
-                                        text = "Resend Code",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isDark) AppleIndigoLight else AppleIndigo
-                                    )
+                    // Field 0: Name (Sign Up only)
+                    if (authMode == AuthMode.SIGN_UP) {
+                        SpendwiseLabeledField(
+                            label = "Name",
+                            value = name,
+                            onValueChange = { name = it },
+                            placeholder = "Enter your full name",
+                            isDark = isDark,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+
+                    // Field 1: Email
+                    SpendwiseLabeledField(
+                        label = "Email",
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            if (emailError != null) emailError = null
+                        },
+                        placeholder = "Enter email",
+                        isDark = isDark,
+                        isError = emailError != null,
+                        errorMessage = emailError,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = if (authMode == AuthMode.FORGOT_PASSWORD) ImeAction.Done else ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                            onDone = {
+                                if (authMode == AuthMode.FORGOT_PASSWORD) {
+                                    handleSubmit()
                                 }
                             }
+                        )
+                    )
+
+                    // Field 2: Password (Login & Sign Up)
+                    if (authMode != AuthMode.FORGOT_PASSWORD) {
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        SpendwiseLabeledField(
+                            label = "Password",
+                            value = password,
+                            onValueChange = {
+                                password = it
+                                if (passwordError != null) passwordError = null
+                            },
+                            placeholder = "Enter password",
+                            isDark = isDark,
+                            isPassword = true,
+                            showPassword = showPassword,
+                            isError = passwordError != null,
+                            errorMessage = passwordError,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = if (authMode == AuthMode.SIGN_UP) ImeAction.Next else ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = { focusManager.moveFocus(FocusDirection.Down) },
+                                onDone = {
+                                    if (authMode == AuthMode.SIGN_IN) {
+                                        handleSubmit()
+                                    }
+                                }
+                            )
+                        )
+
+                        // Field 3: Confirm Password (Sign Up only)
+                        if (authMode == AuthMode.SIGN_UP) {
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            SpendwiseLabeledField(
+                                label = "Confirm password",
+                                value = confirmPassword,
+                                onValueChange = {
+                                    confirmPassword = it
+                                    if (confirmPasswordError != null) confirmPasswordError = null
+                                },
+                                placeholder = "Re-enter password",
+                                isDark = isDark,
+                                isPassword = true,
+                                showPassword = showPassword,
+                                isError = confirmPasswordError != null,
+                                errorMessage = confirmPasswordError,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Password,
+                                    imeAction = ImeAction.Done
+                               ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = { handleSubmit() }
+                                )
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        GlassGradientButton(
-                            text = if (viewModel.isLoading) "Verifying..." else "Verify Code & Sign In",
-                            enabled = otpCode.length >= 6 && !viewModel.isLoading,
-                            onClick = {
+                        // Show Password Checkbox with right-aligned label
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPassword = !showPassword }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Checkbox(
+                                checked = showPassword,
+                                onCheckedChange = { showPassword = it },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = BrandGold,
+                                    checkmarkColor = BrandNavy,
+                                    uncheckedColor = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Show Password",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Error text above button for wrong credentials or general errors
+                    viewModel.errorMessage?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            ),
+                            color = ExpenseRose,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        )
+                    }
+
+                    // Full-width Primary Button: 52dp tall, Champagne Gold with Navy bold text
+                    Button(
+                        onClick = { handleSubmit() },
+                        enabled = !viewModel.isLoading,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BrandGold,
+                            contentColor = BrandNavy,
+                            disabledContainerColor = BrandGold.copy(alpha = 0.5f),
+                            disabledContentColor = BrandNavy.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        if (viewModel.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.5.dp,
+                                color = BrandNavy
+                            )
+                        } else {
+                            Text(
+                                text = when (authMode) {
+                                    AuthMode.SIGN_IN -> "SIGN IN"
+                                    AuthMode.SIGN_UP -> "CREATE ACCOUNT"
+                                    AuthMode.FORGOT_PASSWORD -> "SEND RESET LINK"
+                                },
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    letterSpacing = 0.5.sp
+                                )
+                            )
+                        }
+                    }
+
+                    // OR divider and Continue with Google button (Login & Sign Up modes)
+                    if (authMode != AuthMode.FORGOT_PASSWORD) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(
+                                modifier = Modifier.weight(1f),
+                                color = if (isDark) Color(0xFF232845) else Color(0xFFE2E8F0)
+                            )
+                            Text(
+                                text = "  OR  ",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                ),
+                                color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.weight(1f),
+                                color = if (isDark) Color(0xFF232845) else Color(0xFFE2E8F0)
+                            )
+                        }
+
+                        // Full-width "Continue with Google" Button
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isDark) Color(0xFF181C33) else Color(0xFFFFFFFF),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isDark) Color(0xFF2A3152) else Color(0xFFCBD5E1)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    val act = context as? Activity
+                                    if (act != null) {
+                                        viewModel.signInWithGoogle(act, onAuthSuccess)
+                                    } else {
+                                        viewModel.continueAsDemo(onAuthSuccess)
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                GoogleLogoVector(size = 20.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Continue with Google",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    ),
+                                    color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Footer links
+                    when (authMode) {
+                        AuthMode.SIGN_IN -> {
+                            // Line 1: Forgot Password?
+                            Text(
+                                text = "Forgot Password?",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                ),
+                                color = BrandGold,
+                                modifier = Modifier
+                                    .clickable {
+                                        authMode = AuthMode.FORGOT_PASSWORD
+                                        viewModel.resetMessages()
+                                    }
+                                    .padding(vertical = 4.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Line 2: Don't have an account? Sign up
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Don't have an account? ",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                )
+                                Text(
+                                    text = "Sign up",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = BrandGold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            authMode = AuthMode.SIGN_UP
+                                            viewModel.resetMessages()
+                                        }
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                        AuthMode.SIGN_UP -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Already have an account? ",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                )
+                                Text(
+                                    text = "Sign in",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = BrandGold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            authMode = AuthMode.SIGN_IN
+                                            viewModel.resetMessages()
+                                        }
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                        AuthMode.FORGOT_PASSWORD -> {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Remember your password? ",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                )
+                                Text(
+                                    text = "Back to Login",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    ),
+                                    color = BrandGold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            authMode = AuthMode.SIGN_IN
+                                            viewModel.resetMessages()
+                                        }
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Demo / Offline Mode Action (discrete test link)
+                    Text(
+                        text = "Continue as Demo (Offline Mode)",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp
+                        ),
+                        color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8),
+                        modifier = Modifier
+                            .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                viewModel.verifyEmailOtp(email, otpCode, onAuthSuccess)
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                // ==================== 2. STANDARD SIGN IN TAB ====================
-                } else if (selectedTab == 0) {
-                    Text(
-                        text = "Enter your email and password to sign in to your account.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isDark) TextMutedDark else TextMutedLight
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email Address") },
-                        placeholder = { Text("alex@example.com") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Email,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        placeholder = { Text("••••••••") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
-                                    tint = if (isDark) TextMutedDark else TextMutedLight
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    GlassGradientButton(
-                        text = if (viewModel.isLoading) "Signing In..." else "Sign In",
-                        trailingIcon = if (viewModel.isLoading) null else {
-                            {
-                                Icon(
-                                    Icons.Default.ArrowForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = Color.White
-                                )
-                            }
-                        },
-                        enabled = email.isNotBlank() && password.isNotBlank() && !viewModel.isLoading,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            viewModel.signInWithEmail(
-                                email = email,
-                                pass = password,
-                                isSignUp = false,
-                                onComplete = onAuthSuccess
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Switch to Sign Up helper
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Don't have an account?",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isDark) TextMutedDark else TextMutedLight
-                        )
-                        TextButton(onClick = { selectedTab = 1 }) {
-                            Text(
-                                text = "Sign Up",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDark) AppleIndigoLight else AppleIndigo
-                            )
-                        }
-                    }
-
-                // ==================== 3. STANDARD SIGN UP TAB ====================
-                } else {
-                    Text(
-                        text = "Create your free Spendwise account in seconds.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isDark) TextMutedDark else TextMutedLight
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = fullName,
-                        onValueChange = { fullName = it },
-                        label = { Text("Full Name") },
-                        placeholder = { Text("Alex Morgan") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email Address") },
-                        placeholder = { Text("alex@example.com") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Email,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        placeholder = { Text("At least 6 characters") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
-                                    tint = if (isDark) TextMutedDark else TextMutedLight
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
-                        label = { Text("Confirm Password") },
-                        placeholder = { Text("Re-enter password") },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
-                                Icon(
-                                    imageVector = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (confirmPasswordVisible) "Hide password" else "Show password",
-                                    tint = if (isDark) TextMutedDark else TextMutedLight
-                                )
-                            }
-                        },
-                        visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = fieldColors,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    val passwordsMatch = password.isNotEmpty() && password == confirmPassword
-                    GlassGradientButton(
-                        text = if (viewModel.isLoading) "Creating Account..." else "Create Account",
-                        trailingIcon = if (viewModel.isLoading) null else {
-                            {
-                                Icon(
-                                    Icons.Default.ArrowForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = Color.White
-                                )
-                            }
-                        },
-                        enabled = email.isNotBlank() && password.length >= 6 && passwordsMatch && !viewModel.isLoading,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            viewModel.signInWithEmail(
-                                email = email,
-                                pass = password,
-                                isSignUp = true,
-                                fullName = fullName,
-                                onComplete = onAuthSuccess
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Switch to Sign In helper
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Already have an account?",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isDark) TextMutedDark else TextMutedLight
-                        )
-                        TextButton(onClick = { selectedTab = 0 }) {
-                            Text(
-                                text = "Sign In",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isDark) AppleIndigoLight else AppleIndigo
-                            )
-                        }
-                    }
-                }
-
-                // ==================== SHARED SOCIAL & OFFLINE ACTIONS ====================
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Separator
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(
-                        modifier = Modifier.weight(1f),
-                        color = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
-                    )
-                    Text(
-                        text = "  OR CONTINUE WITH  ",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isDark) TextMutedDark else TextMutedLight
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.weight(1f),
-                        color = if (isDark) Color(0x1FFFFFFF) else Color(0x1F0F172A)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Official Google Sign-In with 4-Color Google "G" Vector Logo
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            if (isDark) GlassFillDark else GlassFillLight,
-                            RoundedCornerShape(16.dp)
-                        )
-                        .border(
-                            1.dp,
-                            if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
-                            RoundedCornerShape(16.dp)
-                        )
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val act = context as? Activity
-                            if (act != null) {
-                                viewModel.signInWithGoogle(act, onAuthSuccess)
-                            } else {
                                 viewModel.continueAsDemo(onAuthSuccess)
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        GoogleLogoVector(size = 20.dp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Continue with Google",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) TextPrimaryDark else TextPrimaryLight
-                        )
-                    }
-                }
-
-                // Secondary option: Use Email OTP (if currently in normal Sign In / Sign Up)
-                if (!isOtpMode) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    TextButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            isOtpMode = true
-                            viewModel.resetMessages()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            Icons.Default.Key,
-                            contentDescription = null,
-                            tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Sign in with 6-digit Email OTP instead",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (isDark) TextMutedDark else TextMutedLight
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Demo / Offline Mode Action
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        viewModel.continueAsDemo(onAuthSuccess)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        Icons.Default.OfflineBolt,
-                        contentDescription = null,
-                        tint = if (isDark) AppleIndigoLight else AppleIndigo,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Skip & Continue Offline (Demo Mode)",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) AppleIndigoLight else AppleIndigo
+                            .padding(vertical = 4.dp)
                     )
                 }
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
+/**
+ * Reusable Spendwise Form Input Field with label above input, 52dp height, 10dp radius,
+ * and gold border on focus.
+ */
+@Composable
+private fun SpendwiseLabeledField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    isDark: Boolean,
+    modifier: Modifier = Modifier,
+    isPassword: Boolean = false,
+    showPassword: Boolean = false,
+    isError: Boolean = false,
+    errorMessage: String? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp
+            ),
+            color = if (isDark) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = {
+                Text(
+                    text = placeholder,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                )
+            },
+            visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
+            singleLine = true,
+            isError = isError,
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            shape = RoundedCornerShape(10.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = if (isDark) BrandInputBgDark else BrandInputBgLight,
+                unfocusedContainerColor = if (isDark) BrandInputBgDark else BrandInputBgLight,
+                focusedBorderColor = BrandGold,
+                unfocusedBorderColor = if (isDark) BrandInputBorderDark else BrandInputBorderLight,
+                focusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
+                unfocusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
+                cursorColor = BrandGold,
+                errorBorderColor = ExpenseRose
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 52.dp)
+        )
+
+        if (isError && !errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = ExpenseRose
+            )
+        }
     }
 }

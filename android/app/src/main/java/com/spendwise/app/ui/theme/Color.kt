@@ -114,3 +114,23 @@ val ObsidianBlack = CanvasBaseDark
 val GlassSurface = DarkSurface1
 val GlassSurfaceElevated = DarkSurface2
 val GlassBorder = DarkBorder
+
+// Spendwise Redesign Palette
+val BrandNavy = Color(0xFF0D0F1F)
+val BrandNavyGradientStart = Color(0xFF0D0F1F)
+val BrandNavyGradientMid = Color(0xFF141830)
+val BrandNavyGradientEnd = Color(0xFF0A0C19)
+val BrandGold = Color(0xFFE7B94F)
+val BrandGoldHover = Color(0xFFD4A33B)
+val BrandGoldDark = Color(0xFFC59328)
+val BrandCardLight = Color(0xFFFFFFFF)
+val BrandCardDark = Color(0xFF131629)
+val BrandCardBorderDark = Color(0xFF232845)
+val BrandInputBgLight = Color(0xFFFFFFFF)
+val BrandInputBgDark = Color(0xFF181C33)
+val BrandInputBorderLight = Color(0xFFCBD5E1)
+val BrandInputBorderDark = Color(0xFF2A3152)
+val BrandTextNavy = Color(0xFF0D0F1F)
+val BrandTextMutedLight = Color(0xFF64748B)
+val BrandTextMutedDark = Color(0xFF94A3B8)
+

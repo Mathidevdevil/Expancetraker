@@ -42,12 +42,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isLoggedIn && pathname !== '/login' && pathname !== '/signup') {
+    if (!isLoading && !isLoggedIn && pathname !== '/login' && pathname !== '/signup' && pathname !== '/forgot-password') {
       router.push('/login');
     }
   }, [isLoading, isLoggedIn, pathname, router]);
 
-  if (pathname === '/login' || pathname === '/signup') {
+  if (pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password') {
     return <main className="min-h-screen bg-background">{children}</main>;
   }
 
