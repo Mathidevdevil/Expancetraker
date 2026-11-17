@@ -29,6 +29,9 @@ interface FinanceContextType {
   userProfile: UserProfile;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   user: any | null;
+  isLoggedIn: boolean;
+  login: (email: string, name?: string) => void;
+  logout: () => Promise<void>;
   isSupabaseLive: boolean;
   isRealtimeConnected: boolean;
   isLoading: boolean;
@@ -63,6 +66,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [user, setUser] = useState<any | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isSupabaseLive, setIsSupabaseLive] = useState<boolean>(false);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -80,7 +84,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       setCurrencyCodeState(savedCurrency);
     }
 
-    // Load stored profile
+    // Load stored profile & login state
+    const savedLogin = localStorage.getItem('spendwise_is_logged_in');
+    if (savedLogin === 'true') {
+      setIsLoggedIn(true);
+    }
+
     try {
       const storedProfile = localStorage.getItem('spendwise_user_profile');
       if (storedProfile) {
@@ -115,6 +124,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
+          setIsLoggedIn(true);
+          try {
+            localStorage.setItem('spendwise_is_logged_in', 'true');
+          } catch (_) {}
           const metaName = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
           const email = session.user.email || 'user@spendwise.app';
           setUserProfile((prev) => {
@@ -142,6 +155,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user || null);
       if (session?.user) {
+        setIsLoggedIn(true);
+        try {
+          localStorage.setItem('spendwise_is_logged_in', 'true');
+        } catch (_) {}
         const metaName = session.user.user_metadata?.full_name || session.user.user_metadata?.name;
         const email = session.user.email || 'user@spendwise.app';
         setUserProfile((prev) => {
@@ -593,6 +610,36 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }));
   }, [transactions, categories, trips]);
 
+  const login = useCallback((email: string, name?: string) => {
+    const cleanName = name || email.split('@')[0].replace('.', ' ')
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || 'User';
+    const initials = cleanName
+      .split(' ')
+      .slice(0, 2)
+      .map((s) => s[0].toUpperCase())
+      .join('') || 'SW';
+    const profile = { name: cleanName, email, initials, bio: 'Personal Finance & Travel Budgeter' };
+    setUserProfile(profile);
+    setIsLoggedIn(true);
+    try {
+      localStorage.setItem('spendwise_user_profile', JSON.stringify(profile));
+      localStorage.setItem('spendwise_is_logged_in', 'true');
+    } catch (_) {}
+  }, []);
+
+  const logout = useCallback(async () => {
+    setIsLoggedIn(false);
+    setUser(null);
+    try {
+      localStorage.removeItem('spendwise_is_logged_in');
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut();
+      }
+    } catch (_) {}
+  }, [supabase]);
+
   const currency = CURRENCIES[currencyCode] || CURRENCIES.INR;
 
   return (
@@ -607,6 +654,9 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         userProfile,
         updateUserProfile,
         user,
+        isLoggedIn,
+        login,
+        logout,
         isSupabaseLive,
         isRealtimeConnected,
         isLoading,

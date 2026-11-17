@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { useFinance } from '@/context/finance-context';
 import {
   Wallet,
   Mail,
@@ -14,15 +15,21 @@ import {
   Sparkles,
   CheckCircle2,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 
 type AuthTab = 'otp' | 'password';
 type PasswordMode = 'login' | 'signup';
 
+const GOOGLE_CLIENT_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+  '176968816003-nshr9hpsr5egtbf5cs42bpp0am9d457k.apps.googleusercontent.com';
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
   const isConfigured = isSupabaseConfigured();
+  const { login, isLoggedIn } = useFinance();
 
   const [authTab, setAuthTab] = useState<AuthTab>('otp');
   const [passwordMode, setPasswordMode] = useState<PasswordMode>('login');
@@ -37,6 +44,13 @@ export default function LoginPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // If already logged in, redirect to Dashboard
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.push('/');
+    }
+  }, [isLoggedIn, router]);
+
   // Timer for OTP resend countdown
   useEffect(() => {
     if (countdown > 0) {
@@ -45,32 +59,62 @@ export default function LoginPage() {
     }
   }, [countdown]);
 
-  const saveProfileLocally = (userEmail: string) => {
-    const namePart = userEmail.split('@')[0].replace('.', ' ');
-    const cleanName =
-      namePart
-        .split(' ')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ') || 'User';
-    const initials =
-      cleanName
-        .split(' ')
-        .slice(0, 2)
-        .map((s) => s[0].toUpperCase())
-        .join('') || 'SW';
+  // Load Google Identity Services script for Web Google Sign-In
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-    try {
-      localStorage.setItem(
-        'spendwise_user_profile',
-        JSON.stringify({
-          name: cleanName,
-          email: userEmail,
-          initials,
-          bio: 'Personal Finance & Travel Budgeter',
-        })
-      );
-    } catch (_) {}
-  };
+    const handleCredentialResponse = (response: any) => {
+      try {
+        if (response.credential) {
+          // Decode Google JWT ID token
+          const base64Url = response.credential.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+              .join('')
+          );
+          const decoded = JSON.parse(jsonPayload);
+          const googleEmail = decoded.email || 'mathi.dev@gmail.com';
+          const googleName = decoded.name || decoded.given_name || 'Google User';
+
+          login(googleEmail, googleName);
+          router.push('/');
+        }
+      } catch (err) {
+        console.warn('Error parsing Google Credential', err);
+        login('mathi.dev@gmail.com', 'Mathi Dev');
+        router.push('/');
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      try {
+        if ((window as any).google?.accounts?.id) {
+          (window as any).google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+        }
+      } catch (err) {
+        console.warn('Google Identity initialize error', err);
+      }
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      try {
+        document.head.removeChild(script);
+      } catch (_) {}
+    };
+  }, [login, router]);
 
   // 1. Send Email OTP
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -82,7 +126,7 @@ export default function LoginPage() {
 
     try {
       if (!isConfigured) {
-        // Local/demo simulation
+        // Local / demo simulation
         setOtpSent(true);
         setDemoCode('123456');
         setCountdown(60);
@@ -126,7 +170,7 @@ export default function LoginPage() {
         if (otpCode.trim() !== '123456' && otpCode.trim() !== demoCode) {
           throw new Error('Invalid code. For testing, please enter 123456.');
         }
-        saveProfileLocally(email);
+        login(email);
         router.push('/');
         return;
       }
@@ -140,7 +184,10 @@ export default function LoginPage() {
       if (error) throw error;
 
       if (data.session?.user) {
-        saveProfileLocally(email);
+        const metaName = data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name;
+        login(email, metaName);
+      } else {
+        login(email);
       }
 
       router.push('/');
@@ -160,7 +207,7 @@ export default function LoginPage() {
 
     try {
       if (!isConfigured) {
-        saveProfileLocally(email);
+        login(email);
         router.push('/');
         return;
       }
@@ -174,12 +221,13 @@ export default function LoginPage() {
         setSuccessMsg('Account created! Please check your email to confirm or sign in.');
         setPasswordMode('login');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
-        saveProfileLocally(email);
+        const metaName = data.session?.user?.user_metadata?.full_name;
+        login(email, metaName);
         router.push('/');
       }
     } catch (err: any) {
@@ -191,21 +239,38 @@ export default function LoginPage() {
 
   // 4. Google OAuth Sign-In
   const handleGoogleSignIn = async () => {
-    if (!isConfigured) {
-      saveProfileLocally('mathi.dev@gmail.com');
-      router.push('/');
-      return;
-    }
+    setErrorMsg('');
+    setLoading(true);
 
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-      if (error) throw error;
+      if (isConfigured) {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) throw error;
+        return;
+      }
+
+      // Try Google Identity prompt if script loaded
+      if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+        try {
+          (window as any).google.accounts.id.prompt((notification: any) => {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              // Fallback to demo Google user if prompt suppressed or origin not whitelisted yet
+              login('mathi.dev@gmail.com', 'Mathi Dev');
+              router.push('/');
+            }
+          });
+          return;
+        } catch (_) {}
+      }
+
+      // Offline fallback login
+      login('mathi.dev@gmail.com', 'Mathi Dev');
+      router.push('/');
     } catch (err: any) {
       setErrorMsg(err.message || 'Google sign-in error.');
       setLoading(false);
@@ -213,25 +278,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-muted/30 to-background">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Dashboard</span>
-          </Link>
-          <span className="text-[11px] text-muted-foreground font-mono">Spendwise 2026</span>
-        </div>
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-background">
+      {/* 1. Liquid Aurora Chromatic Background Blobs */}
+      <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-primary/25 dark:bg-primary/20 blur-3xl pointer-events-none animate-pulse duration-1000" />
+      <div className="absolute top-1/2 -right-24 w-80 h-80 rounded-full bg-sky-500/20 dark:bg-sky-500/15 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 left-1/3 w-88 h-88 rounded-full bg-emerald-500/20 dark:bg-emerald-500/15 blur-3xl pointer-events-none" />
 
+      <div className="w-full max-w-md space-y-6 relative z-10 animate-in fade-in duration-300">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white mx-auto shadow-xl shadow-primary/30">
-            <Wallet className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-3xl bg-primary flex items-center justify-center text-primary-foreground mx-auto shadow-xl shadow-primary/30 border border-white/20">
+            <Wallet className="w-7 h-7 stroke-[2.2]" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
+          <h1 className="text-3xl font-black tracking-tight text-foreground">
             Spendwise
           </h1>
           <p className="text-xs text-muted-foreground font-medium">
@@ -239,10 +298,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Card Form */}
-        <div className="p-6 sm:p-8 rounded-3xl bg-card border border-border shadow-2xl space-y-6">
+        {/* Apple-Style Liquid Glass Card */}
+        <div className="p-6 sm:p-8 rounded-3xl bg-card/75 dark:bg-card/45 backdrop-blur-2xl border border-white/30 dark:border-white/10 shadow-2xl space-y-6">
           {/* Main Auth Mode Switcher (Email OTP vs Password) */}
-          <div className="grid grid-cols-2 p-1 rounded-2xl bg-secondary/60 text-xs font-semibold">
+          <div className="grid grid-cols-2 p-1 rounded-2xl bg-secondary/70 dark:bg-secondary/40 backdrop-blur-md text-xs font-semibold border border-border/40">
             <button
               type="button"
               onClick={() => {
@@ -250,9 +309,9 @@ export default function LoginPage() {
                 setErrorMsg('');
                 setSuccessMsg('');
               }}
-              className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                 authTab === 'otp'
-                  ? 'bg-primary text-primary-foreground font-bold shadow-sm'
+                  ? 'bg-primary text-primary-foreground font-bold shadow-md shadow-primary/25'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -266,9 +325,9 @@ export default function LoginPage() {
                 setErrorMsg('');
                 setSuccessMsg('');
               }}
-              className={`py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                 authTab === 'password'
-                  ? 'bg-primary text-primary-foreground font-bold shadow-sm'
+                  ? 'bg-primary text-primary-foreground font-bold shadow-md shadow-primary/25'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -279,62 +338,31 @@ export default function LoginPage() {
 
           {/* Feedback Messages */}
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-500 font-medium animate-in fade-in">
+            <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-xs text-rose-500 font-medium animate-in fade-in">
               {errorMsg}
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-500 font-medium flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-500 font-medium flex items-center gap-2 animate-in fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
           )}
 
-          {/* Google Sign-In Button */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-2xl border border-border bg-background hover:bg-secondary/60 font-semibold text-xs text-foreground flex items-center justify-center gap-2.5 transition-colors shadow-sm active:scale-[0.99]"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-              />
-            </svg>
-            <span>Continue with Google</span>
-          </button>
-
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-border w-full" />
-            <span className="bg-card px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Or with email
-            </span>
-          </div>
-
           {/* TAB 1: EMAIL OTP (Passwordless Verification Code) */}
           {authTab === 'otp' && (
             <div className="space-y-4">
+              <p className="text-xs text-muted-foreground text-center">
+                Passwordless login: enter your email and we'll send a 6-digit code to log in or create your account.
+              </p>
+
               {!otpSent ? (
                 // Step 1: Enter Email
                 <form onSubmit={handleSendOtp} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                      Your Email Address
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      Email Address
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -344,18 +372,15 @@ export default function LoginPage() {
                         placeholder="mathi@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2.5 text-sm bg-background border border-border rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full pl-10 pr-3 py-3 text-sm bg-background/80 dark:bg-background/50 border border-border/80 rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                       />
                     </div>
-                    <p className="text-[11px] text-muted-foreground mt-1.5">
-                      We will send a 6-digit verification code to this email to sign in or create an account.
-                    </p>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 rounded-2xl font-semibold text-white bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
+                    className="w-full py-3.5 rounded-2xl font-semibold text-primary-foreground bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
                   >
                     <span>{loading ? 'Sending code...' : 'Send 6-Digit OTP Code'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -382,7 +407,7 @@ export default function LoginPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                       Enter 6-Digit Verification Code
                     </label>
                     <div className="relative">
@@ -395,7 +420,7 @@ export default function LoginPage() {
                         placeholder="123456"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-full pl-10 pr-3 py-2.5 text-base tracking-[0.25em] font-mono text-center bg-background border border-border rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
+                        className="w-full pl-10 pr-3 py-3 text-base tracking-[0.3em] font-mono text-center bg-background/80 dark:bg-background/50 border border-border/80 rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
                       />
                     </div>
                   </div>
@@ -403,7 +428,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading || otpCode.length < 6}
-                    className="w-full py-3 rounded-2xl font-semibold text-white bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
+                    className="w-full py-3.5 rounded-2xl font-semibold text-primary-foreground bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
                   >
                     <span>{loading ? 'Verifying...' : 'Verify Code & Enter'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -464,7 +489,7 @@ export default function LoginPage() {
 
               <form onSubmit={handlePasswordAuth} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
@@ -475,13 +500,13 @@ export default function LoginPage() {
                       placeholder="mathi@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2.5 text-sm bg-background border border-border rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
+                      className="w-full pl-10 pr-3 py-3 text-sm bg-background/80 dark:bg-background/50 border border-border/80 rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                     Password
                   </label>
                   <div className="relative">
@@ -492,7 +517,7 @@ export default function LoginPage() {
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2.5 text-sm bg-background border border-border rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
+                      className="w-full pl-10 pr-3 py-3 text-sm bg-background/80 dark:bg-background/50 border border-border/80 rounded-2xl focus:ring-2 focus:ring-primary focus:outline-none"
                     />
                   </div>
                 </div>
@@ -500,7 +525,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 rounded-2xl font-semibold text-white bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
+                  className="w-full py-3.5 rounded-2xl font-semibold text-primary-foreground bg-primary hover:bg-primary/90 text-sm shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
                 >
                   <span>
                     {passwordMode === 'signup' ? 'Create Free Account' : 'Sign In'}
@@ -511,55 +536,56 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* OR DIVIDER & GOOGLE SIGN-IN */}
+          {/* OR DIVIDER */}
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border/60" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground font-medium">Or continue with</span>
+            <div className="relative flex justify-center text-[11px] uppercase">
+              <span className="bg-card/90 px-3 text-muted-foreground font-semibold">OR</span>
             </div>
           </div>
 
+          {/* Google Sign-In Button with Official 4-Color Google "G" Logo */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-2.5 px-4 rounded-2xl font-semibold border border-border/80 hover:bg-muted/50 text-sm transition-all flex items-center justify-center gap-3 active:scale-[0.99] bg-background/80 shadow-sm"
+            className="w-full py-3 px-4 rounded-2xl font-semibold border border-border/80 hover:bg-secondary/70 text-xs text-foreground flex items-center justify-center gap-3 transition-all active:scale-[0.99] bg-card/60 backdrop-blur-md shadow-sm"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
-                d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
               />
               <path
                 fill="#34A853"
-                d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
               />
               <path
                 fill="#FBBC05"
-                d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.02 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
               />
               <path
                 fill="#EA4335"
-                d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
               />
             </svg>
             <span>Continue with Google</span>
           </button>
 
           {/* Instant Demo Access Button */}
-          <div className="pt-2 text-center border-t border-border/50">
+          <div className="pt-2 text-center border-t border-border/40">
             <button
               type="button"
               onClick={() => {
-                saveProfileLocally('mathi.dev@gmail.com');
+                login('mathi.dev@gmail.com', 'Mathi Dev');
                 router.push('/');
               }}
-              className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1.5"
+              className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1.5 transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Skip sign-in & explore offline (Demo Mode)</span>
+              <span>Skip & Continue Offline (Demo Mode)</span>
             </button>
           </div>
         </div>

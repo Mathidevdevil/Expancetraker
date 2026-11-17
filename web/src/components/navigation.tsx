@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useFinance } from '@/context/finance-context';
 import { QuickAddModal } from './quick-add-modal';
 import { EditProfileModal } from './edit-profile-modal';
@@ -19,6 +19,7 @@ import {
   Moon,
   Wallet,
   LogIn,
+  LogOut,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -34,13 +35,33 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isRealtimeConnected, isSupabaseLive, currency, userProfile, user } = useFinance();
+  const router = useRouter();
+  const { isRealtimeConnected, isSupabaseLive, currency, userProfile, user, isLoggedIn, isLoading, logout } = useFinance();
   const { theme, setTheme } = useTheme();
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn && pathname !== '/login' && pathname !== '/signup') {
+      router.push('/login');
+    }
+  }, [isLoading, isLoggedIn, pathname, router]);
+
   if (pathname === '/login' || pathname === '/signup') {
     return <main className="min-h-screen bg-background">{children}</main>;
+  }
+
+  if (!isLoggedIn && !isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-primary/20 border border-primary flex items-center justify-center animate-spin">
+            <Wallet className="w-5 h-5 text-primary" />
+          </div>
+          <p className="text-xs text-muted-foreground font-medium">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -115,14 +136,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </button>
 
-          {/* Quick Login / Account Link */}
-          <Link
-            href="/login"
-            className="w-full py-2 px-3 rounded-2xl bg-secondary/60 hover:bg-secondary text-foreground hover:text-primary font-semibold text-xs flex items-center justify-center gap-2 border border-border/60 transition-all active:scale-[0.98]"
+          {/* Sign Out Button */}
+          <button
+            onClick={async () => {
+              await logout();
+              router.push('/login');
+            }}
+            className="w-full py-2 px-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-semibold text-xs flex items-center justify-center gap-2 border border-rose-500/20 transition-all active:scale-[0.98]"
+            title="Sign Out of Spendwise"
           >
-            <LogIn className="w-3.5 h-3.5 text-primary" />
-            <span>{user ? 'Switch Account / Login' : 'Sign In / Create Account'}</span>
-          </Link>
+            <LogOut className="w-3.5 h-3.5 text-rose-500" />
+            <span>Sign Out</span>
+          </button>
 
           <div className="p-3 rounded-2xl bg-secondary/50 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
@@ -165,13 +190,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-              title="Sign In / Login"
+            <button
+              onClick={async () => {
+                await logout();
+                router.push('/login');
+              }}
+              className="p-2 rounded-xl hover:bg-rose-500/10 transition-colors text-muted-foreground hover:text-rose-500"
+              title="Sign Out"
             >
-              <LogIn className="w-4 h-4 text-primary" />
-            </Link>
+              <LogOut className="w-4 h-4 text-rose-500" />
+            </button>
             <button
               onClick={() => setIsEditProfileOpen(true)}
               className="w-8 h-8 rounded-xl bg-primary/15 text-primary border border-primary/30 flex items-center justify-center font-bold text-xs"
