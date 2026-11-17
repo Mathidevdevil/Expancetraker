@@ -28,6 +28,7 @@ import com.spendwise.app.data.model.CategoryEntity
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.CategoryIconView
 import com.spendwise.app.ui.components.glass.GlassCard
+import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassGradientButton
 import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.components.glass.GlassSecondaryButton
@@ -134,6 +135,7 @@ fun BudgetsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var isAddDialogOpen by remember { mutableStateOf(false) }
+    var pendingDeleteBudget by remember { mutableStateOf<BudgetItemUi?>(null) }
     val haptic = LocalHapticFeedback.current
 
     LazyColumn(
@@ -378,8 +380,8 @@ fun BudgetsScreen(
 
                                 IconButton(
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        viewModel.deleteBudget(item.budget.id)
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        pendingDeleteBudget = item
                                     },
                                     modifier = Modifier.size(32.dp)
                                 ) {
@@ -424,6 +426,25 @@ fun BudgetsScreen(
                 }
             }
         }
+    }
+
+    pendingDeleteBudget?.let { item ->
+        val formattedBudget = CurrencyFormatter.format(item.budget.amount, state.currencySymbol, false)
+        val categoryName = item.category?.name ?: "this category"
+        GlassDeleteConfirmDialog(
+            title = "Delete Budget?",
+            message = "Are you sure you want to remove the monthly budget of $formattedBudget for \"$categoryName\"? This action cannot be undone.",
+            confirmText = "Delete",
+            cancelText = "Cancel",
+            onConfirm = {
+                viewModel.deleteBudget(item.budget.id)
+                pendingDeleteBudget = null
+            },
+            onDismiss = {
+                pendingDeleteBudget = null
+            },
+            isDark = isDark
+        )
     }
 
     if (isAddDialogOpen) {

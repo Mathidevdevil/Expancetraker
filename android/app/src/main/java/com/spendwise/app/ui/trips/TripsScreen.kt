@@ -27,6 +27,7 @@ import com.spendwise.app.data.model.SyncStatus
 import com.spendwise.app.data.model.TripEntity
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.glass.GlassCard
+import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassGradientButton
 import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.components.glass.GlassSecondaryButton
@@ -121,6 +122,7 @@ fun TripsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var isAddTripOpen by remember { mutableStateOf(false) }
+    var pendingDeleteTrip by remember { mutableStateOf<TripWithStats?>(null) }
     val haptic = LocalHapticFeedback.current
 
     LazyColumn(
@@ -259,8 +261,8 @@ fun TripsScreen(
 
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.deleteTrip(trip.id)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                pendingDeleteTrip = item
                             },
                             modifier = Modifier.size(32.dp)
                         ) {
@@ -341,6 +343,23 @@ fun TripsScreen(
         }
     }
 }
+
+    pendingDeleteTrip?.let { item ->
+        GlassDeleteConfirmDialog(
+            title = "Delete Trip?",
+            message = "Are you sure you want to delete the trip \"${item.trip.destination}\"? All associated records will be removed.",
+            confirmText = "Delete",
+            cancelText = "Cancel",
+            onConfirm = {
+                viewModel.deleteTrip(item.trip.id)
+                pendingDeleteTrip = null
+            },
+            onDismiss = {
+                pendingDeleteTrip = null
+            },
+            isDark = isDark
+        )
+    }
 
     if (isAddTripOpen) {
         AddTripDialog(

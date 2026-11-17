@@ -30,6 +30,7 @@ import com.spendwise.app.data.model.SyncStatus
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.CategoryIconView
 import com.spendwise.app.ui.components.getIconVector
+import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassGradientButton
 import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.components.glass.GlassSecondaryButton
@@ -77,6 +78,7 @@ fun CategoriesScreen(
     var selectedIndex by remember { mutableIntStateOf(0) }
     val selectedTab = if (selectedIndex == 0) "expense" else "income"
     var isAddDialogOpen by remember { mutableStateOf(false) }
+    var pendingDeleteCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     val haptic = LocalHapticFeedback.current
 
     val expenseCount = categories.count { it.type == "expense" }
@@ -189,8 +191,8 @@ fun CategoriesScreen(
                         if (!cat.isDefault) {
                             IconButton(
                                 onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.deleteCategory(cat.id)
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    pendingDeleteCategory = cat
                                 },
                                 modifier = Modifier.size(32.dp)
                             ) {
@@ -206,6 +208,23 @@ fun CategoriesScreen(
                 }
             }
         }
+    }
+
+    pendingDeleteCategory?.let { cat ->
+        GlassDeleteConfirmDialog(
+            title = "Delete Category?",
+            message = "Are you sure you want to delete the category \"${cat.name}\"? Any transactions assigned to this category will become uncategorized.",
+            confirmText = "Delete",
+            cancelText = "Cancel",
+            onConfirm = {
+                viewModel.deleteCategory(cat.id)
+                pendingDeleteCategory = null
+            },
+            onDismiss = {
+                pendingDeleteCategory = null
+            },
+            isDark = isDark
+        )
     }
 
     if (isAddDialogOpen) {

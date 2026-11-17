@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.ui.components.CategoryIconView
+import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassIconButton
 import com.spendwise.app.ui.components.glass.GlassRow
 import com.spendwise.app.ui.theme.*
@@ -40,6 +41,7 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val haptic = LocalHapticFeedback.current
+    var pendingDeleteTransaction by remember { mutableStateOf<TransactionWithDetails?>(null) }
 
     // Group filtered transactions by friendly date
     val groupedTransactions = remember(state.transactions) {
@@ -263,13 +265,33 @@ fun TransactionsScreen(
                             currencySymbol = state.currencySymbol,
                             isDark = isDark,
                             onDelete = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.deleteTransaction(item.transaction.id)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                pendingDeleteTransaction = item
                             }
                         )
                     }
                 }
             }
+        }
+
+        // Delete Confirmation Dialog
+        pendingDeleteTransaction?.let { item ->
+            val formattedAmount = CurrencyFormatter.format(item.transaction.amount, state.currencySymbol)
+            val note = if (!item.transaction.note.isNullOrBlank()) " (${item.transaction.note})" else ""
+            GlassDeleteConfirmDialog(
+                title = "Delete Transaction?",
+                message = "Are you sure you want to delete this ${item.transaction.type} of $formattedAmount$note? This action cannot be undone.",
+                confirmText = "Delete",
+                cancelText = "Cancel",
+                onConfirm = {
+                    viewModel.deleteTransaction(item.transaction.id)
+                    pendingDeleteTransaction = null
+                },
+                onDismiss = {
+                    pendingDeleteTransaction = null
+                },
+                isDark = isDark
+            )
         }
     }
 }
