@@ -73,7 +73,7 @@ fun DashboardScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 18.dp, bottom = 136.dp), // 136dp ensures floating bottom bar never covers content
+        contentPadding = PaddingValues(top = 18.dp, bottom = 140.dp), // 140dp ensures floating bottom bar never covers content
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 1. Top Header: Greeting, Brand & Quick Glass Actions

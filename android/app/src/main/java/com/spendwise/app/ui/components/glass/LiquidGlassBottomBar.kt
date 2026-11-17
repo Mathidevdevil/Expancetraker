@@ -75,11 +75,20 @@ fun LiquidGlassBottomBar(
     )
 
     val pillShape = RoundedCornerShape(34.dp)
-    val glassFill = if (isDark) GlassFillElevatedDark else GlassFillElevatedLight
+    // High-opacity frosted glass base (95% opaque): completely prevents underlying scrolling cards/text from bleeding through
+    val baseColor = if (isDark) Color(0xF2121526) else Color(0xF7FFFFFF)
+    // Luminescent specular sheen across the pill surface
+    val sheenBrush = Brush.verticalGradient(
+        colors = if (isDark) {
+            listOf(Color(0x2EFFFFFF), Color(0x0AFFFFFF))
+        } else {
+            listOf(Color(0x80FFFFFF), Color(0x1AFFFFFF))
+        }
+    )
     val borderBrush = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
 
-    val shadowSpotColor = if (isDark) Color(0x40000000) else Color(0x1F0F172A)
-    val shadowAmbientColor = if (isDark) Color(0x26000000) else Color(0x0F0F172A)
+    val shadowSpotColor = if (isDark) Color(0x59000000) else Color(0x1F0F172A)
+    val shadowAmbientColor = if (isDark) Color(0x33000000) else Color(0x0F0F172A)
 
     val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
 
@@ -87,14 +96,15 @@ fun LiquidGlassBottomBar(
         modifier = modifier
             .height(barHeight)
             .shadow(
-                elevation = 16.dp,
+                elevation = 20.dp,
                 shape = pillShape,
                 spotColor = shadowSpotColor,
                 ambientColor = shadowAmbientColor,
                 clip = false
             )
             .clip(pillShape)
-            .background(glassFill, pillShape)
+            .background(baseColor, pillShape)
+            .background(sheenBrush, pillShape)
             .border(width = 1.dp, brush = borderBrush, shape = pillShape)
             .padding(horizontal = 6.dp, vertical = 6.dp)
     ) {
@@ -113,8 +123,36 @@ fun LiquidGlassBottomBar(
                 )
 
                 val lensShape = RoundedCornerShape(26.dp)
-                val lensFill = if (isDark) Color(0x38FFFFFF) else Color(0x52FFFFFF)
-                val lensBorder = if (isDark) DarkGlassLensBorderBrush else LightGlassLensBorderBrush
+                val lensFillBrush = if (isDark) {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x3D818CF8),
+                            Color(0x1F6366F1)
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x2E4F46E5),
+                            Color(0x144F46E5)
+                        )
+                    )
+                }
+                val lensBorder = if (isDark) {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x80A5B4FC),
+                            Color(0x26818CF8)
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0x664F46E5),
+                            Color(0x1F4F46E5)
+                        )
+                    )
+                }
 
                 Box(
                     modifier = Modifier
@@ -130,7 +168,7 @@ fun LiquidGlassBottomBar(
                                         spotColor = if (isDark) Color(0x33000000) else Color(0x1A0F172A),
                                         clip = false
                                     )
-                                    .background(lensFill, lensShape)
+                                    .background(lensFillBrush, lensShape)
                                     .border(width = 1.dp, brush = lensBorder, shape = lensShape)
                             } else {
                                 Modifier
@@ -153,8 +191,8 @@ fun LiquidGlassBottomBar(
                         verticalArrangement = Arrangement.Center,
                         modifier = Modifier.scale(iconScale)
                     ) {
-                        val activeColor = if (isDark) AppleIndigoLight else AppleIndigo
-                        val inactiveColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                        val activeColor = if (isDark) Color.White else AppleIndigo
+                        val inactiveColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
 
                         Icon(
                             imageVector = tab.icon,

@@ -152,7 +152,7 @@ fun CategoriesScreen(
         // Categories List
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 136.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 140.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(filtered, key = { it.id }) { cat ->

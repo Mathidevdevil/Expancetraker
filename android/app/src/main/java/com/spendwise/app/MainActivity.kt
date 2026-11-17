@@ -3,6 +3,7 @@ package com.spendwise.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -11,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -188,6 +191,23 @@ fun MainAppScaffold(
 
         // 2. Liquid Glass Floating Bottom Bar & Floating Add FAB
         if (showBottomBar) {
+            // Ambient gradient vignette so scrolling list items dissolve smoothly before the floating bar
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                if (isDark) Color(0x99090A12) else Color(0x99F8FAFC),
+                                if (isDark) Color(0xF2090A12) else Color(0xF5F8FAFC)
+                            )
+                        )
+                    )
+            )
+
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

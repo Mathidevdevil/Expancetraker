@@ -130,7 +130,7 @@ fun TripsScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 136.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header

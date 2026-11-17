@@ -244,7 +244,7 @@ fun TransactionsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 136.dp),
+                contentPadding = PaddingValues(bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 groupedTransactions.forEach { (dateHeader, txList) ->
