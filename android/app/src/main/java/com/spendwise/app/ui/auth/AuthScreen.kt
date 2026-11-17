@@ -219,7 +219,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    var googleServerClientId: String = "176968816003-6f79gedb3hl43fnp62n74a1jn5mq6ii2.apps.googleusercontent.com"
+    var googleServerClientId: String = "176968816003-nshr9hpsr5egtbf5cs42bpp0am9d457k.apps.googleusercontent.com"
 
     fun signInWithGoogle(activity: Activity, onComplete: () -> Unit) {
         viewModelScope.launch {
@@ -240,7 +240,7 @@ class AuthViewModel @Inject constructor(
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(googleServerClientId)
-                    .setAutoSelectEnabled(true)
+                    .setAutoSelectEnabled(false)
                     .build()
 
                 val request = GetCredentialRequest.Builder()
@@ -275,8 +275,10 @@ class AuthViewModel @Inject constructor(
                 // User dismissed the Google account picker
             } catch (e: Exception) {
                 val rawMsg = e.message ?: "Google Sign-In failed"
-                errorMessage = if (rawMsg.contains("16") || rawMsg.contains("DEVELOPER_ERROR") || rawMsg.contains("10") || rawMsg.contains("fingerprint")) {
-                    "Google setup needed: Add Android Client ID with SHA-1 ED:15:EB:18... in Google Cloud Console. (Tap below for Demo)"
+                errorMessage = if (rawMsg.contains("28444") || rawMsg.contains("16") || rawMsg.contains("DEVELOPER_ERROR") || rawMsg.contains("10") || rawMsg.contains("Developer console") || rawMsg.contains("fingerprint")) {
+                    "[28444] Google Console setup needed: Android Client ID in Google Cloud must have Package 'com.spendwise.app' & SHA-1 'ED:15:EB:18:2A:53:77:DA:5C:F5:3A:02:E6:5D:97:EA:18:F2:B9:98'. Tap below for Demo mode."
+                } else if (rawMsg.contains("No credentials") || rawMsg.contains("NoCredentialException") || rawMsg.contains("no credentials")) {
+                    "Google setup required: In Google Cloud Console, add an Android Client ID with package 'com.spendwise.app' & SHA-1: ED:15:EB:18:2A:53:77:DA:5C:F5:3A:02:E6:5D:97:EA:18:F2:B9:98. Tap below for Demo mode."
                 } else {
                     rawMsg
                 }

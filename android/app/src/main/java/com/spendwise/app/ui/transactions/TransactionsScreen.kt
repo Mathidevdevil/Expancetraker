@@ -346,7 +346,7 @@ fun TransactionRowItem(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
                 onDelete()
-                true
+                false
             } else {
                 false
             }
@@ -372,6 +372,7 @@ fun TransactionRowItem(
                     .fillMaxSize()
                     .clip(RoundedCornerShape(18.dp))
                     .background(color)
+                    .clickable { onDelete() }
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
