@@ -229,13 +229,13 @@ fun TransactionsScreen(
                         }
                     }
                     Text(
-                        text = "No matching transactions",
+                        text = if (state.searchQuery.isEmpty() && state.filterType == "all" && state.filterCategoryId == null) "No transactions yet" else "No matching transactions",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (isDark) TextPrimaryDark else TextPrimaryLight
                     )
                     Text(
-                        text = "Try adjusting your filters or search term",
+                        text = if (state.searchQuery.isEmpty() && state.filterType == "all" && state.filterCategoryId == null) "Tap '+' below to add your first expense or income" else "Try adjusting your filters or search term",
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isDark) TextMutedDark else TextMutedLight
                     )

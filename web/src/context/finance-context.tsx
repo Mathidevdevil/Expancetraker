@@ -13,9 +13,9 @@ export interface UserProfile {
 }
 
 const DEFAULT_USER_PROFILE: UserProfile = {
-  name: 'Alex Morgan',
-  email: 'alex.morgan@spendwise.app',
-  initials: 'AM',
+  name: 'Spendwise User',
+  email: '',
+  initials: 'SU',
   bio: 'Personal Finance & Travel Budgeter',
 };
 
@@ -61,9 +61,9 @@ const LOCAL_STORAGE_KEY_PREFIX = 'spendwise_data_';
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [currencyCode, setCurrencyCodeState] = useState<CurrencyCode>('INR');
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
-  const [budgets, setBudgets] = useState<Budget[]>(INITIAL_BUDGETS);
-  const [trips, setTrips] = useState<Trip[]>(INITIAL_TRIPS);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile>(DEFAULT_USER_PROFILE);
   const [user, setUser] = useState<any | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -623,6 +623,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const profile = { name: cleanName, email, initials, bio: 'Personal Finance & Travel Budgeter' };
     setUserProfile(profile);
     setIsLoggedIn(true);
+    // On first login, keep transactions, budgets, and trips empty if not in storage
+    const hasStoredTxs = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
+    if (!hasStoredTxs) {
+      setTransactions([]);
+      setBudgets([]);
+      setTrips([]);
+    }
     try {
       localStorage.setItem('spendwise_user_profile', JSON.stringify(profile));
       localStorage.setItem('spendwise_is_logged_in', 'true');
@@ -632,8 +639,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setIsLoggedIn(false);
     setUser(null);
+    setTransactions([]);
+    setBudgets([]);
+    setTrips([]);
+    setUserProfile(DEFAULT_USER_PROFILE);
     try {
       localStorage.removeItem('spendwise_is_logged_in');
+      localStorage.removeItem('spendwise_user_profile');
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }

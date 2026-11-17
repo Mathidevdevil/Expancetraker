@@ -62,8 +62,9 @@ abstract class AppDatabase : RoomDatabase() {
             super.onCreate(db)
             INSTANCE?.let { database ->
                 scope.launch(Dispatchers.IO) {
+                    // Only populate default expense & income categories.
+                    // Transactions, budgets, and trips remain empty for a fresh first-login experience.
                     populateDefaultCategories(database.categoryDao())
-                    populateInitialData(database.transactionDao(), database.budgetDao(), database.tripDao())
                 }
             }
         }

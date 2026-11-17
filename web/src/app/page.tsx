@@ -132,6 +132,25 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* First Login Empty Welcome Banner */}
+      {transactions.length === 0 && (
+        <div className="p-5 sm:p-6 rounded-3xl bg-secondary/40 border border-border/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-foreground">
+                Welcome to Spendwise!
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Your workspace is empty and ready. Use the <strong>+ Quick Add</strong> button in the navigation bar to log your first income or expense.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2. Modern 2026 Hero Balance Card */}
       <div className="p-7 sm:p-8 rounded-3xl fintech-card bg-gradient-to-b from-card to-secondary/30 relative overflow-hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

@@ -135,6 +135,7 @@ class AuthViewModel @Inject constructor(
                         }
                     }
                 }
+                repository.clearAllUserData()
                 updateProfileFromEmail(cleanEmail, fullName)
                 repository.isLoggedIn = true
                 onComplete()
@@ -144,6 +145,7 @@ class AuthViewModel @Inject constructor(
                     errorMessage = "Incorrect email or password."
                 } else {
                     // Offline fallback
+                    repository.clearAllUserData()
                     updateProfileFromEmail(cleanEmail, fullName)
                     repository.isLoggedIn = true
                     onComplete()
@@ -225,6 +227,7 @@ class AuthViewModel @Inject constructor(
                             }
                         }
 
+                        repository.clearAllUserData()
                         repository.updateProfile(displayName, email)
                         repository.isLoggedIn = true
                         signedIn = true
@@ -257,9 +260,12 @@ class AuthViewModel @Inject constructor(
     }
 
     fun continueAsDemo(onComplete: () -> Unit) {
-        updateProfileFromEmail("mathi.dev@gmail.com", "Mathi Dev")
-        repository.isLoggedIn = true
-        onComplete()
+        viewModelScope.launch {
+            repository.clearAllUserData()
+            updateProfileFromEmail("mathi.dev@gmail.com", "Mathi Dev")
+            repository.isLoggedIn = true
+            onComplete()
+        }
     }
 }
 

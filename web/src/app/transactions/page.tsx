@@ -220,8 +220,12 @@ export default function TransactionsPage() {
             <div className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center text-muted-foreground mx-auto">
               <Receipt className="w-6 h-6" />
             </div>
-            <p className="text-sm font-semibold text-foreground">No transactions match your search</p>
-            <p className="text-xs text-muted-foreground">Try clearing filters or search keywords</p>
+            <p className="text-sm font-semibold text-foreground">
+              {transactions.length === 0 ? 'No transactions yet' : 'No transactions match your search'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {transactions.length === 0 ? 'Click + Add or Quick Add to record your first income or expense' : 'Try clearing filters or search keywords'}
+            </p>
           </div>
         ) : (
           Object.entries(groupedTransactions).map(([dateGroup, txList]) => (

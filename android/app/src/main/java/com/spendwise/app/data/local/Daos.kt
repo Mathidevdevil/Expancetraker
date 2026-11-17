@@ -47,6 +47,9 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deletePermanently(id: String)
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearAllTransactions()
 }
 
 @Dao
@@ -68,6 +71,9 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets WHERE id = :id")
     suspend fun deletePermanently(id: String)
+
+    @Query("DELETE FROM budgets")
+    suspend fun clearAllBudgets()
 }
 
 @Dao
@@ -89,4 +95,7 @@ interface TripDao {
 
     @Query("DELETE FROM trips WHERE id = :id")
     suspend fun deletePermanently(id: String)
+
+    @Query("DELETE FROM trips")
+    suspend fun clearAllTrips()
 }

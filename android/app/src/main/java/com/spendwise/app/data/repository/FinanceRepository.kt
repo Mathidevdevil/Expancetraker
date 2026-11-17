@@ -15,9 +15,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 data class UserProfile(
-    val name: String = "Alex Morgan",
-    val email: String = "alex.morgan@spendwise.app",
-    val initials: String = "AM"
+    val name: String = "Spendwise User",
+    val email: String = "user@spendwise.app",
+    val initials: String = "SU"
 )
 
 @Singleton
@@ -48,6 +48,12 @@ class FinanceRepository @Inject constructor(
         isLoggedIn = false
     }
 
+    suspend fun clearAllUserData() {
+        transactionDao.clearAllTransactions()
+        budgetDao.clearAllBudgets()
+        tripDao.clearAllTrips()
+    }
+
     private val _themeMode = MutableStateFlow(
         prefs.getString("theme_mode", "dark") ?: "dark"
     )
@@ -64,9 +70,9 @@ class FinanceRepository @Inject constructor(
 
     private val _userProfile = MutableStateFlow(
         UserProfile(
-            name = prefs.getString("user_name", "Alex Morgan") ?: "Alex Morgan",
-            email = prefs.getString("user_email", "alex.morgan@spendwise.app") ?: "alex.morgan@spendwise.app",
-            initials = prefs.getString("user_initials", "AM") ?: "AM"
+            name = prefs.getString("user_name", "Spendwise User") ?: "Spendwise User",
+            email = prefs.getString("user_email", "user@spendwise.app") ?: "user@spendwise.app",
+            initials = prefs.getString("user_initials", "SU") ?: "SU"
         )
     )
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
