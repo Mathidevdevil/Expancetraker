@@ -72,6 +72,7 @@ class AuthViewModel @Inject constructor(
     var showGoogleSetupDialog by mutableStateOf(false)
 
     val googleClientIds = listOf(
+        "314420522490-1fj4onjt5vp556fbbbnrs1audgcoefde.apps.googleusercontent.com",
         "176968816003-6f79gedb3hl43fnp62n74a1jn5mq6ii2.apps.googleusercontent.com",
         "176968816003-nshr9hpsr5egtbf5cs42bpp0am9d457k.apps.googleusercontent.com"
     )

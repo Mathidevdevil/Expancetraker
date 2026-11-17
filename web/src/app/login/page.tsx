@@ -26,7 +26,7 @@ import {
 
 const GOOGLE_CLIENT_ID =
   process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-  '176968816003-6f79gedb3hl43fnp62n74a1jn5mq6ii2.apps.googleusercontent.com';
+  '314420522490-1fj4onjt5vp556fbbbnrs1audgcoefde.apps.googleusercontent.com';
 
 type AuthMode = 'signin' | 'signup' | 'otp';
 
