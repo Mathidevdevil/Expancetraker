@@ -158,3 +158,35 @@ begin
         alter publication supabase_realtime add table public.budgets;
     end if;
 end $$;
+
+-- 12. Over-The-Air (OTA) App In-App Updates System
+create table if not exists public.app_updates (
+    id uuid primary key default gen_random_uuid(),
+    version_code integer not null unique,
+    version_name text not null,
+    apk_url text not null,
+    changelog text,
+    is_mandatory boolean not null default false,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.app_updates disable row level security;
+alter table public.app_updates replica identity full;
+
+-- Grant public access so any installed Android app can check for latest release
+grant select on table public.app_updates to anon, authenticated;
+
+-- Helpful sample release insert (modify version_code & apk_url when releasing a new version):
+-- insert into public.app_updates (version_code, version_name, apk_url, changelog, is_mandatory)
+-- values (
+--     2,
+--     '1.0.1',
+--     'https://github.com/Mathidevdevil/Expancetraker/releases/download/v1.0.1/app-debug.apk',
+--     '• Beautiful Apple SF Pro typography\n• Over-The-Air in-app auto updates\n• Instant realtime sync with Supabase\n• Enhanced performance & stability',
+--     false
+-- )
+-- on conflict (version_code) do update set
+--     apk_url = excluded.apk_url,
+--     changelog = excluded.changelog,
+--     is_mandatory = excluded.is_mandatory;
+

@@ -3,6 +3,9 @@ package com.spendwise.app.ui.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spendwise.app.data.model.*
+import com.spendwise.app.data.remote.AppUpdateInfo
+import com.spendwise.app.data.remote.UpdateDownloadState
+import com.spendwise.app.data.remote.UpdateManager
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.data.repository.UserProfile
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,17 +43,26 @@ data class DashboardUiState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: FinanceRepository
+    private val repository: FinanceRepository,
+    private val updateManager: UpdateManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private val _availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
+    val availableUpdate: StateFlow<AppUpdateInfo?> = _availableUpdate.asStateFlow()
+
+    val updateDownloadState: StateFlow<UpdateDownloadState> = updateManager.downloadState
 
     init {
         // Automatically sync latest cloud data when opening the dashboard
         viewModelScope.launch {
             repository.syncFromCloud()
         }
+
+        // Check for over-the-air app updates on launch
+        checkForAppUpdates()
 
         val calendar = Calendar.getInstance()
         val currentMonth = calendar.get(Calendar.MONTH) + 1
@@ -169,5 +181,28 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             repository.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, type = type)
         }
+    }
+
+    fun checkForAppUpdates() {
+        viewModelScope.launch {
+            try {
+                val update = updateManager.checkForUpdate()
+                _availableUpdate.value = update
+            } catch (e: Exception) {
+                // Silently ignore update check errors on background check
+            }
+        }
+    }
+
+    fun startUpdateDownload() {
+        val update = _availableUpdate.value ?: return
+        viewModelScope.launch {
+            updateManager.downloadAndInstallApk(update.apkUrl)
+        }
+    }
+
+    fun dismissUpdate() {
+        _availableUpdate.value = null
+        updateManager.resetState()
     }
 }

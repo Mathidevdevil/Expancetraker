@@ -24,25 +24,40 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.spendwise.app.BuildConfig
+import com.spendwise.app.data.remote.AppUpdateInfo
+import com.spendwise.app.data.remote.UpdateDownloadState
+import com.spendwise.app.data.remote.UpdateManager
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.data.repository.UserProfile
 import com.spendwise.app.ui.components.EditProfileDialog
+import com.spendwise.app.ui.components.UpdateBottomSheet
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class CurrencyOption(val code: String, val symbol: String, val name: String)
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: FinanceRepository
+    private val repository: FinanceRepository,
+    private val updateManager: UpdateManager
 ) : ViewModel() {
     val userProfile: StateFlow<UserProfile> = repository.userProfile
     val themeMode: StateFlow<String> = repository.themeMode
 
     var selectedCurrency by mutableStateOf(repository.selectedCurrency)
         private set
+
+    val availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
+    val isCheckingUpdate = MutableStateFlow(false)
+    val updateCheckStatusMessage = MutableStateFlow<String?>(null)
+    val downloadState = updateManager.downloadState
 
     val currencyOptions = listOf(
         CurrencyOption("INR", "₹", "Indian Rupee (Default)"),
@@ -64,6 +79,36 @@ class SettingsViewModel @Inject constructor(
         repository.selectedCurrency = code
         repository.selectedCurrencySymbol = symbol
     }
+
+    fun checkForUpdate() {
+        viewModelScope.launch {
+            isCheckingUpdate.value = true
+            updateCheckStatusMessage.value = null
+            try {
+                val update = updateManager.checkForUpdate()
+                availableUpdate.value = update
+                if (update == null) {
+                    updateCheckStatusMessage.value = "Spendwise is up to date (v${BuildConfig.VERSION_NAME})"
+                }
+            } catch (e: Exception) {
+                updateCheckStatusMessage.value = "Check failed: ${e.message}"
+            } finally {
+                isCheckingUpdate.value = false
+            }
+        }
+    }
+
+    fun startUpdateDownload() {
+        val update = availableUpdate.value ?: return
+        viewModelScope.launch {
+            updateManager.downloadAndInstallApk(update.apkUrl)
+        }
+    }
+
+    fun dismissUpdate() {
+        availableUpdate.value = null
+        updateManager.resetState()
+    }
 }
 
 @Composable
@@ -76,6 +121,10 @@ fun SettingsScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val currentThemeMode by viewModel.themeMode.collectAsState()
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val updateStatusMessage by viewModel.updateCheckStatusMessage.collectAsState()
+    val availableUpdate by viewModel.availableUpdate.collectAsState()
+    val downloadState by viewModel.downloadState.collectAsState()
     var isEditProfileDialogOpen by remember { mutableStateOf(false) }
     var isCurrencyDialogOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -459,41 +508,102 @@ fun SettingsScreen(
             }
         }
 
-        // About / Version Card
+        // About / Version Card with OTA In-App Updater
         Surface(
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.surface,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(42.dp)
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Spendwise",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE}) • SF Pro",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                Column {
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = !isCheckingUpdate) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.checkForUpdate()
+                        }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            tint = if (isDark) AppleIndigoLight else AppleIndigo,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Check for Updates",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isDark) AppleIndigoLight else AppleIndigo
+                        )
+                    }
+
+                    if (isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = if (isDark) AppleIndigoLight else AppleIndigo
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                if (!updateStatusMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Spendwise 2026",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Version 2.0.0 • Modern Calm Fintech",
+                        text = updateStatusMessage!!,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -602,6 +712,17 @@ fun SettingsScreen(
             onSave = { newName, newEmail ->
                 viewModel.updateProfile(newName, newEmail)
             }
+        )
+    }
+
+    if (availableUpdate != null) {
+        UpdateBottomSheet(
+            updateInfo = availableUpdate!!,
+            downloadState = downloadState,
+            isDark = isDark,
+            onStartDownload = { viewModel.startUpdateDownload() },
+            onInstall = { viewModel.startUpdateDownload() },
+            onDismiss = { viewModel.dismissUpdate() }
         )
     }
 }

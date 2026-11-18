@@ -25,6 +25,7 @@ import com.spendwise.app.ui.budgets.BudgetsViewModel
 import com.spendwise.app.ui.categories.CategoriesScreen
 import com.spendwise.app.ui.categories.CategoriesViewModel
 import com.spendwise.app.ui.components.QuickAddBottomSheet
+import com.spendwise.app.ui.components.UpdateBottomSheet
 import com.spendwise.app.ui.components.glass.AuroraBackground
 import com.spendwise.app.ui.components.glass.GlassFloatingAddButton
 import com.spendwise.app.ui.components.glass.LiquidGlassBottomBar
@@ -84,6 +85,8 @@ fun MainAppScaffold(
 
     var isQuickAddOpen by remember { mutableStateOf(false) }
     val dashState by dashboardViewModel.uiState.collectAsState()
+    val availableUpdate by dashboardViewModel.availableUpdate.collectAsState()
+    val updateDownloadState by dashboardViewModel.updateDownloadState.collectAsState()
 
     // 4 Streamlined Tabs: Overview, Activity, Budgets, Travel
     // Categories is cleanly relocated into Settings (accessed from top profile avatar)
@@ -248,6 +251,24 @@ fun MainAppScaffold(
                 onSave = { amount, categoryId, tripId, paymentMethod, note, type ->
                     dashboardViewModel.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, type)
                     isQuickAddOpen = false
+                }
+            )
+        }
+
+        // 4. Over-The-Air In-App Auto Update Bottom Sheet
+        if (availableUpdate != null) {
+            UpdateBottomSheet(
+                updateInfo = availableUpdate!!,
+                downloadState = updateDownloadState,
+                isDark = isDark,
+                onStartDownload = {
+                    dashboardViewModel.startUpdateDownload()
+                },
+                onInstall = {
+                    dashboardViewModel.startUpdateDownload()
+                },
+                onDismiss = {
+                    dashboardViewModel.dismissUpdate()
                 }
             )
         }

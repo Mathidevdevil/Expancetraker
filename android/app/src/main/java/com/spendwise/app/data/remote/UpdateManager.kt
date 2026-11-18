@@ -1,0 +1,216 @@
+package com.spendwise.app.data.remote
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.util.Log
+import androidx.core.content.FileProvider
+import com.spendwise.app.BuildConfig
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Serializable
+data class AppUpdateInfo(
+    @SerialName("version_code") val versionCode: Int,
+    @SerialName("version_name") val versionName: String,
+    @SerialName("apk_url") val apkUrl: String,
+    val changelog: String? = null,
+    @SerialName("is_mandatory") val isMandatory: Boolean = false
+)
+
+sealed class UpdateDownloadState {
+    object Idle : UpdateDownloadState()
+    data class Downloading(val progress: Float) : UpdateDownloadState()
+    object ReadyToInstall : UpdateDownloadState()
+    data class Error(val message: String) : UpdateDownloadState()
+}
+
+@Singleton
+class UpdateManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val supabaseProvider: SupabaseClientProvider
+) {
+    private val _downloadState = MutableStateFlow<UpdateDownloadState>(UpdateDownloadState.Idle)
+    val downloadState = _downloadState.asStateFlow()
+
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Checks if a newer version of Spendwise is available.
+     * Prioritizes Supabase app_updates table, with automatic GitHub Releases fallback.
+     */
+    suspend fun checkForUpdate(): AppUpdateInfo? = withContext(Dispatchers.IO) {
+        // 1. Try Supabase app_updates table
+        if (supabaseProvider.isConfigured) {
+            try {
+                val client = supabaseProvider.getClient()
+                val updates = client.from("app_updates").select {
+                    order("version_code", Order.DESCENDING)
+                    limit(1)
+                }.decodeList<AppUpdateInfo>()
+
+                val latest = updates.firstOrNull()
+                if (latest != null && latest.versionCode > BuildConfig.VERSION_CODE) {
+                    Log.i("UpdateManager", "Found update in Supabase: v${latest.versionName} (${latest.versionCode})")
+                    return@withContext latest
+                }
+            } catch (e: Exception) {
+                Log.w("UpdateManager", "Supabase update check skipped: ${e.message}")
+            }
+        }
+
+        // 2. Fallback to GitHub Releases API
+        try {
+            val url = URL("https://api.github.com/repos/Mathidevdevil/Expancetraker/releases/latest")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 5000
+                setRequestProperty("Accept", "application/vnd.github.v3+json")
+                setRequestProperty("User-Agent", "Spendwise-Android")
+            }
+            if (conn.responseCode == 200) {
+                val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+                val root = json.parseToJsonElement(responseText).jsonObject
+                val tagName = root["tag_name"]?.jsonPrimitive?.content ?: ""
+                val body = root["body"]?.jsonPrimitive?.content ?: "Performance enhancements & bug fixes."
+                
+                // Parse version from tag like "v1.0.1" or "1.0.1"
+                val cleanTag = tagName.removePrefix("v").trim()
+                val parts = cleanTag.split(".").mapNotNull { it.toIntOrNull() }
+                val remoteCode = if (parts.size >= 2) parts[0] * 100 + parts[1] * 10 + (parts.getOrNull(2) ?: 0) else 0
+
+                val assets = root["assets"]?.toString() ?: ""
+                val apkAssetUrl = if (assets.contains("browser_download_url")) {
+                    val regex = """"browser_download_url":\s*"([^"]+\.apk)"""".toRegex()
+                    regex.find(responseText)?.groupValues?.get(1)
+                } else null
+
+                if (apkAssetUrl != null && remoteCode > BuildConfig.VERSION_CODE) {
+                    Log.i("UpdateManager", "Found update on GitHub Releases: $cleanTag ($remoteCode)")
+                    return@withContext AppUpdateInfo(
+                        versionCode = remoteCode,
+                        versionName = cleanTag,
+                        apkUrl = apkAssetUrl,
+                        changelog = body,
+                        isMandatory = false
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("UpdateManager", "GitHub Releases update check skipped: ${e.message}")
+        }
+
+        return@withContext null
+    }
+
+    /**
+     * Downloads the APK file with real-time progress and triggers the system package installer.
+     */
+    suspend fun downloadAndInstallApk(apkUrl: String) = withContext(Dispatchers.IO) {
+        _downloadState.value = UpdateDownloadState.Downloading(0f)
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL(apkUrl)
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+            }
+
+            // Handle redirect if needed (GitHub download URLs redirect to objects.githubusercontent.com)
+            var code = connection.responseCode
+            if (code == HttpURLConnection.HTTP_MOVED_TEMP || code == HttpURLConnection.HTTP_MOVED_PERM || code == 307) {
+                val newUrl = connection.getHeaderField("Location")
+                connection.disconnect()
+                connection = (URL(newUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 15000
+                    readTimeout = 30000
+                }
+            }
+
+            val fileLength = connection.contentLength
+            val destinationFile = File(context.cacheDir, "spendwise_update.apk")
+            if (destinationFile.exists()) destinationFile.delete()
+
+            connection.inputStream.use { input ->
+                FileOutputStream(destinationFile).use { output ->
+                    val data = ByteArray(8192)
+                    var total: Long = 0
+                    var count: Int
+                    while (input.read(data).also { count = it } != -1) {
+                        total += count
+                        output.write(data, 0, count)
+                        if (fileLength > 0) {
+                            val progress = total.toFloat() / fileLength.toFloat()
+                            _downloadState.value = UpdateDownloadState.Downloading(progress)
+                        }
+                    }
+                }
+            }
+
+            _downloadState.value = UpdateDownloadState.ReadyToInstall
+            withContext(Dispatchers.Main) {
+                launchInstaller(destinationFile)
+            }
+        } catch (e: Exception) {
+            Log.e("UpdateManager", "Failed to download APK: ${e.message}", e)
+            _downloadState.value = UpdateDownloadState.Error(e.message ?: "Download failed")
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    fun launchInstaller(apkFile: File) {
+        try {
+            // Check Android 8+ unknown app sources permission
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!context.packageManager.canRequestPackageInstalls()) {
+                    val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(settingsIntent)
+                    return
+                }
+            }
+
+            val contentUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(installIntent)
+        } catch (e: Exception) {
+            Log.e("UpdateManager", "Error launching APK installer: ${e.message}", e)
+            _downloadState.value = UpdateDownloadState.Error("Could not launch installer: ${e.message}")
+        }
+    }
+
+    fun resetState() {
+        _downloadState.value = UpdateDownloadState.Idle
+    }
+}
