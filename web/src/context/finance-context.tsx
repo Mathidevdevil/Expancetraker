@@ -142,7 +142,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           });
           await fetchRemoteData(session.user.id);
         } else {
-          // Fallback demo user
+          // If no active auth session, check stored user profile email
+          const stored = localStorage.getItem('spendwise_user_profile');
+          if (stored) {
+            try {
+              const p = JSON.parse(stored);
+              if (p?.email) {
+                await fetchRemoteData(p.email);
+              }
+            } catch (_) {}
+          }
           setIsLoading(false);
         }
       } catch (err) {
@@ -288,23 +297,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // 5. Transaction Actions (Optimistic)
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'created_at' | 'user_id'>): Promise<Transaction> => {
+    const targetUserId = user?.id || userProfile?.email || 'user@spendwise.app';
     const tempId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newTx: Transaction = {
       ...txData,
       id: tempId,
-      user_id: user?.id || 'demo-user',
+      user_id: targetUserId,
       created_at: new Date().toISOString(),
     };
 
     // Optimistic Update
     setTransactions((prev) => [newTx, ...prev]);
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { data, error } = await supabase
           .from('transactions')
           .insert({
-            user_id: user.id,
+            user_id: targetUserId,
             category_id: txData.category_id || null,
             trip_id: txData.trip_id || null,
             type: txData.type,
@@ -332,7 +342,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateTransaction = async (id: string, partial: Partial<Transaction>) => {
     setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...partial, updated_at: new Date().toISOString() } : t)));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { error } = await supabase.from('transactions').update(partial).eq('id', id);
         if (error) throw error;
@@ -345,7 +355,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deleteTransaction = async (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { error } = await supabase.from('transactions').delete().eq('id', id);
         if (error) throw error;
@@ -444,11 +454,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       setBudgets((prev) => [...prev, newBudget]);
     }
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
+        const targetUserId = user?.id || userProfile?.email || 'user@spendwise.app';
         const { error } = await supabase.from('budgets').upsert(
           {
-            user_id: user.id,
+            user_id: targetUserId,
             category_id: categoryId,
             month,
             year,
@@ -466,7 +477,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deleteBudget = async (id: string) => {
     setBudgets((prev) => prev.filter((b) => b.id !== id));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { error } = await supabase.from('budgets').delete().eq('id', id);
         if (error) throw error;
@@ -478,22 +489,23 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // 8. Trip Actions
   const addTrip = async (tripData: Omit<Trip, 'id' | 'created_at' | 'user_id'>): Promise<Trip> => {
+    const targetUserId = user?.id || userProfile?.email || 'user@spendwise.app';
     const tempId = `trip-${Date.now()}`;
     const newTrip: Trip = {
       ...tripData,
       id: tempId,
-      user_id: user?.id || 'demo-user',
+      user_id: targetUserId,
       created_at: new Date().toISOString(),
     };
 
     setTrips((prev) => [newTrip, ...prev]);
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { data, error } = await supabase
           .from('trips')
           .insert({
-            user_id: user.id,
+            user_id: targetUserId,
             destination: tripData.destination,
             start_date: tripData.start_date,
             end_date: tripData.end_date,
@@ -518,12 +530,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const updateTrip = async (id: string, partial: Partial<Trip>) => {
     setTrips((prev) => prev.map((t) => (t.id === id ? { ...t, ...partial } : t)));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { error } = await supabase.from('trips').update(partial).eq('id', id);
         if (error) throw error;
       } catch (err) {
-        console.error('Error updating trip', err);
+        console.error('Error updating trip in Supabase', err);
       }
     }
   };
@@ -531,12 +543,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const deleteTrip = async (id: string) => {
     setTrips((prev) => prev.filter((t) => t.id !== id));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive) {
       try {
         const { error } = await supabase.from('trips').delete().eq('id', id);
         if (error) throw error;
       } catch (err) {
-        console.error('Error deleting trip', err);
+        console.error('Error deleting trip from Supabase', err);
       }
     }
   };
@@ -634,7 +646,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('spendwise_user_profile', JSON.stringify(profile));
       localStorage.setItem('spendwise_is_logged_in', 'true');
     } catch (_) {}
-  }, []);
+
+    if (isSupabaseConfigured()) {
+      fetchRemoteData(email);
+    }
+  }, [fetchRemoteData]);
 
   const logout = useCallback(async () => {
     setIsLoggedIn(false);

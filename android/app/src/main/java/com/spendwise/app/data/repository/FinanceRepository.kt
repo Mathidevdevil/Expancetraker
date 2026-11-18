@@ -54,6 +54,10 @@ class FinanceRepository @Inject constructor(
         set(value) { prefs.edit().putString("auth_user_id", value).apply() }
 
     fun getEffectiveUserId(): String {
+        val storedEmail = prefs.getString("user_email", "") ?: ""
+        if (storedEmail.isNotBlank() && storedEmail != "user@spendwise.app") {
+            return storedEmail
+        }
         val storedId = authUserId
         if (storedId.isNotBlank()) return storedId
         if (supabaseProvider.isConfigured) {
@@ -63,7 +67,7 @@ class FinanceRepository @Inject constructor(
                 return liveUid
             }
         }
-        return prefs.getString("user_email", "demo-user") ?: "demo-user"
+        return "user@spendwise.app"
     }
 
     fun logout() {
