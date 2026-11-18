@@ -1,14 +1,19 @@
 package com.spendwise.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.spendwise.app.data.local.AppDatabase
 import com.spendwise.app.data.model.*
 import com.spendwise.app.data.remote.SupabaseClientProvider
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
@@ -44,8 +49,26 @@ class FinanceRepository @Inject constructor(
         get() = prefs.getBoolean("is_logged_in", false)
         set(value) { prefs.edit().putBoolean("is_logged_in", value).apply() }
 
+    var authUserId: String
+        get() = prefs.getString("auth_user_id", "") ?: ""
+        set(value) { prefs.edit().putString("auth_user_id", value).apply() }
+
+    fun getEffectiveUserId(): String {
+        val storedId = authUserId
+        if (storedId.isNotBlank()) return storedId
+        if (supabaseProvider.isConfigured) {
+            val liveUid = runCatching { supabaseProvider.getClient().auth.currentUserOrNull()?.id }.getOrNull()
+            if (!liveUid.isNullOrBlank()) {
+                authUserId = liveUid
+                return liveUid
+            }
+        }
+        return prefs.getString("user_email", "demo-user") ?: "demo-user"
+    }
+
     fun logout() {
         isLoggedIn = false
+        authUserId = ""
     }
 
     suspend fun clearAllUserData() {
@@ -127,7 +150,79 @@ class FinanceRepository @Inject constructor(
     fun getTransactionsForTrip(tripId: String): Flow<List<TransactionEntity>> =
         transactionDao.getTransactionsForTrip(tripId)
 
-    // Sub-5-second fast write to Room local DB
+    /**
+     * Restore all user data from Supabase cloud into local Room database.
+     * Guarantees data is preserved even after uninstall / reinstall on same account.
+     */
+    suspend fun syncFromCloud() {
+        if (!supabaseProvider.isConfigured) return
+        withContext(Dispatchers.IO) {
+            try {
+                val client = supabaseProvider.getClient()
+                val uid = getEffectiveUserId()
+                if (uid.isBlank() || uid == "demo-user") return@withContext
+
+                // 1. Transactions
+                try {
+                    val remoteTxs = client.from("transactions").select {
+                        filter {
+                            eq("user_id", uid)
+                        }
+                    }.decodeList<TransactionEntity>()
+                    if (remoteTxs.isNotEmpty()) {
+                        transactionDao.insertAll(remoteTxs)
+                        Log.i("FinanceRepository", "Synced ${remoteTxs.size} transactions from Supabase")
+                    }
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error fetching remote transactions: ${e.message}")
+                }
+
+                // 2. Trips
+                try {
+                    val remoteTrips = client.from("trips").select {
+                        filter {
+                            eq("user_id", uid)
+                        }
+                    }.decodeList<TripEntity>()
+                    if (remoteTrips.isNotEmpty()) {
+                        tripDao.insertAll(remoteTrips)
+                        Log.i("FinanceRepository", "Synced ${remoteTrips.size} trips from Supabase")
+                    }
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error fetching remote trips: ${e.message}")
+                }
+
+                // 3. Budgets
+                try {
+                    val remoteBudgets = client.from("budgets").select {
+                        filter {
+                            eq("user_id", uid)
+                        }
+                    }.decodeList<BudgetEntity>()
+                    if (remoteBudgets.isNotEmpty()) {
+                        budgetDao.insertAll(remoteBudgets)
+                        Log.i("FinanceRepository", "Synced ${remoteBudgets.size} budgets from Supabase")
+                    }
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error fetching remote budgets: ${e.message}")
+                }
+
+                // 4. Categories (seed defaults & user custom)
+                try {
+                    val remoteCats = client.from("categories").select().decodeList<CategoryEntity>()
+                    if (remoteCats.isNotEmpty()) {
+                        categoryDao.insertAll(remoteCats)
+                    }
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error fetching remote categories: ${e.message}")
+                }
+            } catch (e: Exception) {
+                Log.e("FinanceRepository", "Cloud sync exception: ${e.message}", e)
+            }
+        }
+    }
+
+    // Sub-5-second fast write to Room local DB + Background Cloud Upload
     suspend fun quickAddExpense(
         amount: Double,
         categoryId: String?,
@@ -137,7 +232,7 @@ class FinanceRepository @Inject constructor(
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
         type: String = "expense"
     ) {
-        val currentUserId = prefs.getString("user_email", "user@spendwise.app") ?: "user@spendwise.app"
+        val currentUserId = getEffectiveUserId()
         val tx = TransactionEntity(
             userId = currentUserId,
             categoryId = categoryId,
@@ -151,26 +246,81 @@ class FinanceRepository @Inject constructor(
             syncStatus = SyncStatus.PENDING_INSERT
         )
         transactionDao.insertOrUpdate(tx)
+
+        // Upload to Supabase if online
+        if (supabaseProvider.isConfigured && currentUserId != "demo-user") {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("transactions").upsert(tx)
+                    transactionDao.insertOrUpdate(tx.copy(syncStatus = SyncStatus.SYNCED))
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Saved locally. Supabase upload queued/error: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun insertTransaction(transaction: TransactionEntity) {
         transactionDao.insertOrUpdate(transaction)
+        if (supabaseProvider.isConfigured && transaction.userId != "demo-user") {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("transactions").upsert(transaction)
+                    transactionDao.insertOrUpdate(transaction.copy(syncStatus = SyncStatus.SYNCED))
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error uploading transaction to Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun deleteTransaction(id: String) {
         transactionDao.markForDeletion(id)
+        if (supabaseProvider.isConfigured) {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("transactions").delete {
+                        filter { eq("id", id) }
+                    }
+                    transactionDao.deletePermanently(id)
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error deleting transaction from Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun insertCategory(category: CategoryEntity) {
         categoryDao.insertOrUpdate(category)
+        if (supabaseProvider.isConfigured && category.userId != null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("categories").upsert(category)
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error uploading category to Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun deleteCategory(id: String) {
         categoryDao.markForDeletion(id)
+        if (supabaseProvider.isConfigured) {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("categories").delete {
+                        filter { eq("id", id) }
+                    }
+                    categoryDao.deletePermanently(id)
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error deleting category from Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun setBudget(categoryId: String, month: Int, year: Int, amount: Double) {
-        val currentUserId = prefs.getString("user_email", "user@spendwise.app") ?: "user@spendwise.app"
+        val currentUserId = getEffectiveUserId()
         val budget = BudgetEntity(
             userId = currentUserId,
             categoryId = categoryId,
@@ -181,18 +331,63 @@ class FinanceRepository @Inject constructor(
             syncStatus = SyncStatus.PENDING_INSERT
         )
         budgetDao.insertOrUpdate(budget)
+
+        if (supabaseProvider.isConfigured && currentUserId != "demo-user") {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("budgets").upsert(budget)
+                    budgetDao.insertOrUpdate(budget.copy(syncStatus = SyncStatus.SYNCED))
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error uploading budget to Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun deleteBudget(id: String) {
         budgetDao.markForDeletion(id)
+        if (supabaseProvider.isConfigured) {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("budgets").delete {
+                        filter { eq("id", id) }
+                    }
+                    budgetDao.deletePermanently(id)
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error deleting budget from Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun insertTrip(trip: TripEntity) {
         tripDao.insertOrUpdate(trip)
+        if (supabaseProvider.isConfigured && trip.userId != "demo-user") {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("trips").upsert(trip)
+                    tripDao.insertOrUpdate(trip.copy(syncStatus = SyncStatus.SYNCED))
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error uploading trip to Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     suspend fun deleteTrip(id: String) {
         tripDao.markForDeletion(id)
+        if (supabaseProvider.isConfigured) {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("trips").delete {
+                        filter { eq("id", id) }
+                    }
+                    tripDao.deletePermanently(id)
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error deleting trip from Supabase: ${e.message}")
+                }
+            }
+        }
     }
 
     fun generateCSVFile(context: Context, transactions: List<TransactionWithDetails>): java.io.File {

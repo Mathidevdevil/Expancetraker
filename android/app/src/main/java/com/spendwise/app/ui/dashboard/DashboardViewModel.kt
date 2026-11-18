@@ -47,6 +47,11 @@ class DashboardViewModel @Inject constructor(
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
     init {
+        // Automatically sync latest cloud data when opening the dashboard
+        viewModelScope.launch {
+            repository.syncFromCloud()
+        }
+
         val calendar = Calendar.getInstance()
         val currentMonth = calendar.get(Calendar.MONTH) + 1
         val currentYear = calendar.get(Calendar.YEAR)

@@ -134,6 +134,11 @@ class AuthViewModel @Inject constructor(
                             this.password = pass
                         }
                     }
+                    val authUser = client.auth.currentUserOrNull()
+                    if (authUser != null) {
+                        repository.authUserId = authUser.id
+                    }
+                    repository.syncFromCloud()
                 }
                 val prevEmail = repository.userProfile.value.email
                 if (isSignUp && prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
@@ -228,6 +233,11 @@ class AuthViewModel @Inject constructor(
                                     provider = Google
                                     idToken = googleIdTokenCredential.idToken
                                 }
+                                val authUser = client.auth.currentUserOrNull()
+                                if (authUser != null) {
+                                    repository.authUserId = authUser.id
+                                }
+                                repository.syncFromCloud()
                             } catch (_: Exception) {
                                 // Supabase offline fallback
                             }
