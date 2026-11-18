@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { useFinance } from '@/context/finance-context';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID =
   process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
@@ -29,6 +29,7 @@ function SignUpForm() {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [authError, setAuthError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // Redirect if already logged in
@@ -87,6 +88,7 @@ function SignUpForm() {
     const cleanName = fullName.trim();
     setIsLoading(true);
     setAuthError('');
+    setSuccessMessage('');
 
     try {
       if (isConfigured) {
@@ -100,6 +102,12 @@ function SignUpForm() {
 
         if (error) {
           throw error;
+        }
+
+        if (data.user && !data.session) {
+          setSuccessMessage('Account created! Please check your email inbox to confirm your email, then sign in.');
+          setIsLoading(false);
+          return;
         }
 
         login(cleanEmail, cleanName);
@@ -172,6 +180,14 @@ function SignUpForm() {
           <div className="mt-5 p-3 rounded-[10px] bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center gap-2.5 text-rose-600 dark:text-rose-400 text-xs font-medium animate-shake">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{authError}</span>
+          </div>
+        )}
+
+        {/* Success Banner */}
+        {successMessage && (
+          <div className="mt-5 p-3 rounded-[10px] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 flex items-center gap-2.5 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{successMessage}</span>
           </div>
         )}
 

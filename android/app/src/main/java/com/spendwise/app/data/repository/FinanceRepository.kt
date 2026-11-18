@@ -137,8 +137,9 @@ class FinanceRepository @Inject constructor(
         date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
         type: String = "expense"
     ) {
+        val currentUserId = prefs.getString("user_email", "user@spendwise.app") ?: "user@spendwise.app"
         val tx = TransactionEntity(
-            userId = "demo-user",
+            userId = currentUserId,
             categoryId = categoryId,
             tripId = tripId,
             type = type,
@@ -169,8 +170,9 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun setBudget(categoryId: String, month: Int, year: Int, amount: Double) {
+        val currentUserId = prefs.getString("user_email", "user@spendwise.app") ?: "user@spendwise.app"
         val budget = BudgetEntity(
-            userId = "demo-user",
+            userId = currentUserId,
             categoryId = categoryId,
             month = month,
             year = year,

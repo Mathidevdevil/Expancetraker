@@ -135,7 +135,10 @@ class AuthViewModel @Inject constructor(
                         }
                     }
                 }
-                repository.clearAllUserData()
+                val prevEmail = repository.userProfile.value.email
+                if (isSignUp && prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
+                    repository.clearAllUserData()
+                }
                 updateProfileFromEmail(cleanEmail, fullName)
                 repository.isLoggedIn = true
                 onComplete()
@@ -145,7 +148,10 @@ class AuthViewModel @Inject constructor(
                     errorMessage = "Incorrect email or password."
                 } else {
                     // Offline fallback
-                    repository.clearAllUserData()
+                    val prevEmail = repository.userProfile.value.email
+                    if (isSignUp && prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
+                        repository.clearAllUserData()
+                    }
                     updateProfileFromEmail(cleanEmail, fullName)
                     repository.isLoggedIn = true
                     onComplete()
@@ -227,7 +233,10 @@ class AuthViewModel @Inject constructor(
                             }
                         }
 
-                        repository.clearAllUserData()
+                        val prevEmail = repository.userProfile.value.email
+                        if (prevEmail.isNotBlank() && prevEmail != email && prevEmail != "user@spendwise.app") {
+                            repository.clearAllUserData()
+                        }
                         repository.updateProfile(displayName, email)
                         repository.isLoggedIn = true
                         signedIn = true
@@ -261,7 +270,6 @@ class AuthViewModel @Inject constructor(
 
     fun continueAsDemo(onComplete: () -> Unit) {
         viewModelScope.launch {
-            repository.clearAllUserData()
             updateProfileFromEmail("mathi.dev@gmail.com", "Mathi Dev")
             repository.isLoggedIn = true
             onComplete()

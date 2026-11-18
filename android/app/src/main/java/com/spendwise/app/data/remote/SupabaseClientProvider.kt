@@ -18,9 +18,9 @@ import javax.inject.Singleton
 @Singleton
 class SupabaseClientProvider @Inject constructor() {
 
-    // Default configuration (placeholder until user inputs their own keys)
-    var supabaseUrl: String = "https://placeholder-spendwise.supabase.co"
-    var supabaseKey: String = "placeholder-anon-key"
+    // Default configuration pointing to the Spendwise live project
+    var supabaseUrl: String = "https://ahzrvlkrgowgsfuirlae.supabase.co"
+    var supabaseKey: String = "sb_publishable_0NHdCL1EKUB1m6zmmgyeXw_VIo27WKi"
 
     private var _client: SupabaseClient? = null
 

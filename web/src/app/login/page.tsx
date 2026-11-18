@@ -132,7 +132,13 @@ function LoginForm() {
         });
 
         if (error) {
-          throw new Error('Incorrect email or password');
+          if (error.message.toLowerCase().includes('email not confirmed')) {
+            throw new Error('Please check your inbox and confirm your email before signing in.');
+          } else if (error.message.toLowerCase().includes('invalid login credentials')) {
+            throw new Error('Incorrect email or password.');
+          } else {
+            throw new Error(error.message);
+          }
         }
 
         const displayName = data.user?.user_metadata?.full_name || cleanEmail.split('@')[0];
@@ -147,7 +153,7 @@ function LoginForm() {
       login(cleanEmail, formattedName || 'Spendwise User');
       router.push('/');
     } catch (err: any) {
-      setAuthError(err.message === 'Incorrect email or password' ? err.message : 'Incorrect email or password');
+      setAuthError(err.message || 'Incorrect email or password');
     } finally {
       setIsLoading(false);
     }

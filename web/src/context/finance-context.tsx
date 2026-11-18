@@ -99,21 +99,22 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       console.error('Error reading localStorage profile', e);
     }
 
-    if (!isConfigured) {
-      // Load from localStorage if present, else fallback to mock seeds
-      try {
-        const storedCats = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}categories`);
-        const storedTxs = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
-        const storedBudgets = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
-        const storedTrips = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
+    // Always load from local cache first so user data is immediately available
+    try {
+      const storedCats = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}categories`);
+      const storedTxs = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
+      const storedBudgets = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
+      const storedTrips = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
 
-        if (storedCats) setCategories(JSON.parse(storedCats));
-        if (storedTxs) setTransactions(JSON.parse(storedTxs));
-        if (storedBudgets) setBudgets(JSON.parse(storedBudgets));
-        if (storedTrips) setTrips(JSON.parse(storedTrips));
-      } catch (e) {
-        console.error('Error reading localStorage data', e);
-      }
+      if (storedCats) setCategories(JSON.parse(storedCats));
+      if (storedTxs) setTransactions(JSON.parse(storedTxs));
+      if (storedBudgets) setBudgets(JSON.parse(storedBudgets));
+      if (storedTrips) setTrips(JSON.parse(storedTrips));
+    } catch (e) {
+      console.error('Error reading localStorage data', e);
+    }
+
+    if (!isConfigured) {
       setIsLoading(false);
       return;
     }
@@ -268,19 +269,17 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase, isSupabaseLive, user]);
 
-  // 4. Local Persistence for Offline / Demo Mode
+  // 4. Local Persistence for Offline & Immediate Cache (always active)
   useEffect(() => {
-    if (!isSupabaseLive) {
-      try {
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}categories`, JSON.stringify(categories));
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`, JSON.stringify(transactions));
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`, JSON.stringify(budgets));
-        localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`, JSON.stringify(trips));
-      } catch (e) {
-        console.error('Failed to sync to localStorage', e);
-      }
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}categories`, JSON.stringify(categories));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`, JSON.stringify(transactions));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`, JSON.stringify(budgets));
+      localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`, JSON.stringify(trips));
+    } catch (e) {
+      console.error('Failed to sync to localStorage', e);
     }
-  }, [categories, transactions, budgets, trips, isSupabaseLive]);
+  }, [categories, transactions, budgets, trips]);
 
   const setCurrencyCode = (code: CurrencyCode) => {
     setCurrencyCodeState(code);
@@ -306,24 +305,25 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           .from('transactions')
           .insert({
             user_id: user.id,
-            category_id: txData.category_id,
+            category_id: txData.category_id || null,
             trip_id: txData.trip_id || null,
             type: txData.type,
             amount: txData.amount,
             date: txData.date,
-            note: txData.note,
+            note: txData.note || null,
             payment_method: txData.payment_method,
           })
           .select()
           .single();
 
-        if (error) throw error;
-        if (data) {
+        if (error) {
+          console.warn('Supabase insert transaction error (saved locally):', error.message);
+        } else if (data) {
           setTransactions((prev) => prev.map((t) => (t.id === tempId ? (data as Transaction) : t)));
           return data as Transaction;
         }
-      } catch (err) {
-        console.error('Error inserting transaction in Supabase', err);
+      } catch (err: any) {
+        console.warn('Network/Supabase error on addTransaction (saved locally):', err?.message || err);
       }
     }
     return newTx;
@@ -639,16 +639,10 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setIsLoggedIn(false);
     setUser(null);
-    setTransactions([]);
-    setBudgets([]);
-    setTrips([]);
     setUserProfile(DEFAULT_USER_PROFILE);
     try {
       localStorage.removeItem('spendwise_is_logged_in');
       localStorage.removeItem('spendwise_user_profile');
-      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
-      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
-      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }
