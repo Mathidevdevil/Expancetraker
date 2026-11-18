@@ -7,9 +7,15 @@
 create extension if not exists "uuid-ossp";
 create extension if not exists "pgcrypto";
 
--- 2. Create Categories Table
+-- 2. Drop existing tables if migrating from old uuid schema to text schema
+drop table if exists public.budgets cascade;
+drop table if exists public.transactions cascade;
+drop table if exists public.trips cascade;
+drop table if exists public.categories cascade;
+
+-- 3. Create Categories Table
 -- Using text primary key to support both default slugs ('cat-food') and generated UUIDs
-create table if not exists public.categories (
+create table public.categories (
     id text primary key default gen_random_uuid()::text,
     user_id uuid references auth.users(id) on delete cascade,
     name text not null,
@@ -21,8 +27,8 @@ create table if not exists public.categories (
     updated_at timestamptz not null default now()
 );
 
--- 3. Create Trips Table (Travel Plans)
-create table if not exists public.trips (
+-- 4. Create Trips Table (Travel Plans)
+create table public.trips (
     id text primary key default gen_random_uuid()::text,
     user_id uuid references auth.users(id) on delete cascade not null,
     destination text not null,
@@ -35,8 +41,8 @@ create table if not exists public.trips (
     check (end_date >= start_date)
 );
 
--- 4. Create Transactions Table
-create table if not exists public.transactions (
+-- 5. Create Transactions Table
+create table public.transactions (
     id text primary key default gen_random_uuid()::text,
     user_id uuid references auth.users(id) on delete cascade not null,
     category_id text references public.categories(id) on delete set null,
@@ -50,8 +56,8 @@ create table if not exists public.transactions (
     updated_at timestamptz not null default now()
 );
 
--- 5. Create Budgets Table (Monthly category budgets)
-create table if not exists public.budgets (
+-- 6. Create Budgets Table (Monthly category budgets)
+create table public.budgets (
     id text primary key default gen_random_uuid()::text,
     user_id uuid references auth.users(id) on delete cascade not null,
     category_id text references public.categories(id) on delete cascade not null,
@@ -63,7 +69,7 @@ create table if not exists public.budgets (
     unique (user_id, category_id, month, year)
 );
 
--- 6. Indexes for High Performance Queries
+-- 7. Indexes for High Performance Queries
 create index if not exists idx_categories_user on public.categories(user_id);
 create index if not exists idx_transactions_user_date on public.transactions(user_id, date desc);
 create index if not exists idx_transactions_category on public.transactions(category_id);
@@ -71,7 +77,7 @@ create index if not exists idx_transactions_trip on public.transactions(trip_id)
 create index if not exists idx_budgets_user_period on public.budgets(user_id, year, month);
 create index if not exists idx_trips_user on public.trips(user_id);
 
--- 7. Updated At Trigger Function
+-- 8. Updated At Trigger Function
 create or replace function public.handle_updated_at()
 returns trigger as $$
 begin
@@ -100,7 +106,7 @@ create trigger trg_budgets_updated_at
     before update on public.budgets
     for each row execute function public.handle_updated_at();
 
--- 8. Row Level Security (RLS)
+-- 9. Row Level Security (RLS)
 alter table public.categories enable row level security;
 alter table public.trips enable row level security;
 alter table public.transactions enable row level security;
@@ -149,7 +155,7 @@ create policy "Allow users full access to own budgets"
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
 
--- 9. Direct Seed Global Default Categories (Accessible by all users)
+-- 10. Direct Seed Global Default Categories (Accessible by all users)
 insert into public.categories (id, user_id, name, type, icon, color, is_default) values
     ('cat-food', null, 'Food & Dining', 'expense', 'Utensils', '#EF4444', true),
     ('cat-trans', null, 'Transportation', 'expense', 'Car', '#F59E0B', true),
@@ -173,7 +179,7 @@ on conflict (id) do update set
     color = excluded.color,
     is_default = excluded.is_default;
 
--- 10. Enable Supabase Realtime
+-- 11. Enable Supabase Realtime
 alter table public.categories replica identity full;
 alter table public.trips replica identity full;
 alter table public.transactions replica identity full;
