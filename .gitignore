@@ -36,3 +36,4 @@ Thumbs.db
 
 # Local Debug Screenshots
 screenshot_*.png
+*.tsbuildinfo
