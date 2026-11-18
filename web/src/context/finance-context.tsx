@@ -193,11 +193,16 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const fetchRemoteData = useCallback(async (userId: string) => {
     setIsLoading(true);
     try {
+      const email = userProfile?.email;
+      const authEmail = user?.email;
+      const ids = Array.from(new Set([userId, user?.id, email, authEmail].filter((id): id is string => Boolean(id) && id !== 'user@spendwise.app')));
+      const queryIds = ids.length > 0 ? ids : [userId];
+
       const [catsRes, tripsRes, txsRes, budgetsRes] = await Promise.all([
         supabase.from('categories').select('*').order('created_at', { ascending: true }),
-        supabase.from('trips').select('*').eq('user_id', userId).order('start_date', { ascending: false }),
-        supabase.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
-        supabase.from('budgets').select('*').eq('user_id', userId),
+        supabase.from('trips').select('*').in('user_id', queryIds).order('start_date', { ascending: false }),
+        supabase.from('transactions').select('*').in('user_id', queryIds).order('date', { ascending: false }),
+        supabase.from('budgets').select('*').in('user_id', queryIds),
       ]);
 
       if (catsRes.data && catsRes.data.length > 0) setCategories(catsRes.data);
@@ -209,7 +214,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, user?.id, user?.email, userProfile?.email]);
 
   // 3. Realtime Subscription Channel
   useEffect(() => {

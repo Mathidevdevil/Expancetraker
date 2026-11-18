@@ -7,7 +7,9 @@ import com.spendwise.app.data.model.*
 import com.spendwise.app.data.remote.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,39 @@ class FinanceRepository @Inject constructor(
     private val budgetDao = appDatabase.budgetDao()
     private val tripDao = appDatabase.tripDao()
 
+    init {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                categoryDao.cleanLegacyCategories()
+            } catch (e: Exception) {
+                Log.w("FinanceRepository", "Error cleaning legacy categories: ${e.message}")
+            }
+        }
+    }
+
+    private suspend fun resolveCanonicalCategoryId(categoryId: String?): String? {
+        if (categoryId == null) return null
+        if (categoryId.startsWith("cat-")) return categoryId
+        val cat = categoryDao.getCategoryById(categoryId) ?: return categoryId
+        return when (cat.name.lowercase().trim()) {
+            "food & dining" -> "cat-food"
+            "transportation" -> "cat-trans"
+            "shopping" -> "cat-shop"
+            "entertainment" -> "cat-ent"
+            "bills & utilities" -> "cat-bills"
+            "healthcare" -> "cat-health"
+            "travel" -> "cat-travel"
+            "groceries" -> "cat-groc"
+            "education" -> "cat-edu"
+            "salary" -> "cat-sal"
+            "investment" -> "cat-inv"
+            "freelance" -> "cat-free"
+            "gift / bonus" -> "cat-gift"
+            "other income" -> "cat-other-inc"
+            else -> "cat-other-exp"
+        }
+    }
+
     var selectedCurrency: String
         get() = prefs.getString("selected_currency", "INR") ?: "INR"
         set(value) { prefs.edit().putString("selected_currency", value).apply() }
@@ -54,12 +89,12 @@ class FinanceRepository @Inject constructor(
         set(value) { prefs.edit().putString("auth_user_id", value).apply() }
 
     fun getEffectiveUserId(): String {
+        val storedId = authUserId
+        if (storedId.isNotBlank()) return storedId
         val storedEmail = prefs.getString("user_email", "") ?: ""
         if (storedEmail.isNotBlank() && storedEmail != "user@spendwise.app") {
             return storedEmail
         }
-        val storedId = authUserId
-        if (storedId.isNotBlank()) return storedId
         if (supabaseProvider.isConfigured) {
             val liveUid = runCatching { supabaseProvider.getClient().auth.currentUserOrNull()?.id }.getOrNull()
             if (!liveUid.isNullOrBlank()) {
@@ -68,6 +103,17 @@ class FinanceRepository @Inject constructor(
             }
         }
         return "user@spendwise.app"
+    }
+
+    fun getAllUserIdentifiers(): List<String> {
+        val list = mutableListOf<String>()
+        val storedId = authUserId
+        if (storedId.isNotBlank()) list.add(storedId)
+        val storedEmail = prefs.getString("user_email", "") ?: ""
+        if (storedEmail.isNotBlank() && storedEmail != "user@spendwise.app") list.add(storedEmail)
+        val uid = getEffectiveUserId()
+        if (uid.isNotBlank() && uid != "user@spendwise.app") list.add(uid)
+        return list.distinct()
     }
 
     fun logout() {
@@ -163,14 +209,14 @@ class FinanceRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             try {
                 val client = supabaseProvider.getClient()
-                val uid = getEffectiveUserId()
-                if (uid.isBlank() || uid == "demo-user") return@withContext
+                val userIds = getAllUserIdentifiers()
+                if (userIds.isEmpty()) return@withContext
 
                 // 1. Transactions
                 try {
                     val remoteTxs = client.from("transactions").select {
                         filter {
-                            eq("user_id", uid)
+                            isIn("user_id", userIds)
                         }
                     }.decodeList<TransactionEntity>()
                     if (remoteTxs.isNotEmpty()) {
@@ -185,7 +231,7 @@ class FinanceRepository @Inject constructor(
                 try {
                     val remoteTrips = client.from("trips").select {
                         filter {
-                            eq("user_id", uid)
+                            isIn("user_id", userIds)
                         }
                     }.decodeList<TripEntity>()
                     if (remoteTrips.isNotEmpty()) {
@@ -200,7 +246,7 @@ class FinanceRepository @Inject constructor(
                 try {
                     val remoteBudgets = client.from("budgets").select {
                         filter {
-                            eq("user_id", uid)
+                            isIn("user_id", userIds)
                         }
                     }.decodeList<BudgetEntity>()
                     if (remoteBudgets.isNotEmpty()) {
@@ -237,9 +283,10 @@ class FinanceRepository @Inject constructor(
         type: String = "expense"
     ) {
         val currentUserId = getEffectiveUserId()
+        val canonicalCatId = resolveCanonicalCategoryId(categoryId)
         val tx = TransactionEntity(
             userId = currentUserId,
-            categoryId = categoryId,
+            categoryId = canonicalCatId,
             tripId = tripId,
             type = type,
             amount = amount,
@@ -265,12 +312,14 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun insertTransaction(transaction: TransactionEntity) {
-        transactionDao.insertOrUpdate(transaction)
-        if (supabaseProvider.isConfigured && transaction.userId != "demo-user") {
+        val canonicalCatId = resolveCanonicalCategoryId(transaction.categoryId)
+        val cleanTx = if (canonicalCatId != transaction.categoryId) transaction.copy(categoryId = canonicalCatId) else transaction
+        transactionDao.insertOrUpdate(cleanTx)
+        if (supabaseProvider.isConfigured && cleanTx.userId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
-                    supabaseProvider.getClient().from("transactions").upsert(transaction)
-                    transactionDao.insertOrUpdate(transaction.copy(syncStatus = SyncStatus.SYNCED))
+                    supabaseProvider.getClient().from("transactions").upsert(cleanTx)
+                    transactionDao.insertOrUpdate(cleanTx.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
                     Log.w("FinanceRepository", "Error uploading transaction to Supabase: ${e.message}")
                 }
@@ -325,9 +374,10 @@ class FinanceRepository @Inject constructor(
 
     suspend fun setBudget(categoryId: String, month: Int, year: Int, amount: Double) {
         val currentUserId = getEffectiveUserId()
+        val canonicalCatId = resolveCanonicalCategoryId(categoryId) ?: categoryId
         val budget = BudgetEntity(
             userId = currentUserId,
-            categoryId = categoryId,
+            categoryId = canonicalCatId,
             month = month,
             year = year,
             amount = amount,
