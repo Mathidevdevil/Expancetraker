@@ -68,6 +68,9 @@ class TransactionsViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TransactionsUiState())
 
+    val allTransactions: StateFlow<List<TransactionWithDetails>> = repository.transactionsWithDetails
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
     }

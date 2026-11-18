@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,6 +31,7 @@ import androidx.lifecycle.viewModelScope
 import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.CategoryIconView
+import com.spendwise.app.ui.components.ExportBottomSheet
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -131,6 +133,7 @@ class ReportsViewModel @Inject constructor(
 fun ReportsScreen(viewModel: ReportsViewModel) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var isExportSheetOpen by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -152,7 +155,7 @@ fun ReportsScreen(viewModel: ReportsViewModel) {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Cash flow comparison & CSV statement export",
+                        text = "Cash flow comparison & Excel/CSV statement export",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -160,7 +163,7 @@ fun ReportsScreen(viewModel: ReportsViewModel) {
                 Spacer(modifier = Modifier.width(10.dp))
 
                 FilledTonalButton(
-                    onClick = { viewModel.exportCSV(context) },
+                    onClick = { isExportSheetOpen = true },
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -310,5 +313,14 @@ fun ReportsScreen(viewModel: ReportsViewModel) {
                 }
             }
         }
+    }
+
+    if (isExportSheetOpen) {
+        ExportBottomSheet(
+            transactions = state.rawTransactions,
+            currencySymbol = state.currencySymbol,
+            isDark = isSystemInDarkTheme(),
+            onDismiss = { isExportSheetOpen = false }
+        )
     }
 }

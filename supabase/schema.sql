@@ -176,17 +176,18 @@ alter table public.app_updates replica identity full;
 -- Grant public access so any installed Android app can check for latest release
 grant select on table public.app_updates to anon, authenticated;
 
--- Helpful sample release insert (modify version_code & apk_url when releasing a new version):
--- insert into public.app_updates (version_code, version_name, apk_url, changelog, is_mandatory)
--- values (
---     2,
---     '1.0.1',
---     'https://github.com/Mathidevdevil/Expancetraker/releases/download/v1.0.1/app-debug.apk',
---     '• Beautiful Apple SF Pro typography\n• Over-The-Air in-app auto updates\n• Instant realtime sync with Supabase\n• Enhanced performance & stability',
---     false
--- )
--- on conflict (version_code) do update set
---     apk_url = excluded.apk_url,
---     changelog = excluded.changelog,
---     is_mandatory = excluded.is_mandatory;
+-- Release v1.0.1 (Excel / CSV Report Export & OTA in-app updater)
+insert into public.app_updates (version_code, version_name, apk_url, changelog, is_mandatory)
+values (
+    2,
+    '1.0.1',
+    'https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.1.apk',
+    '• New Feature: Excel Sheet (.xls) and CSV statement export\n• Download Monthly, Yearly, and Date-wise financial reports\n• Live transaction preview & cashflow summary before export\n• 1-Tap sharing to WhatsApp, Google Drive, and Excel\n• Apple SF Pro typography & performance optimizations',
+    false
+)
+on conflict (version_code) do update set
+    apk_url = excluded.apk_url,
+    changelog = excluded.changelog,
+    version_name = excluded.version_name,
+    is_mandatory = excluded.is_mandatory;
 

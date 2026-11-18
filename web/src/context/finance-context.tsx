@@ -51,7 +51,8 @@ interface FinanceContextType {
   updateTrip: (id: string, trip: Partial<Trip>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
   // Export
-  exportToCSV: (transactionsToExport?: Transaction[]) => void;
+  exportToCSV: (transactionsToExport?: Transaction[], periodTitle?: string) => void;
+  exportToExcel: (transactionsToExport?: Transaction[], periodTitle?: string) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -559,7 +560,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 9. CSV Export
-  const exportToCSV = (transactionsToExport = transactions) => {
+  const exportToCSV = (transactionsToExport = transactions, periodTitle = 'Financial_Report') => {
     const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
     const tripMap = new Map(trips.map((t) => [t.id, t.destination]));
 
@@ -568,19 +569,191 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       t.id,
       t.date,
       t.type.toUpperCase(),
-      t.category_id ? categoryMap.get(t.category_id) || 'Uncategorized' : 'None',
+      t.category_id ? `"${(categoryMap.get(t.category_id) || 'Uncategorized').replace(/"/g, '""')}"` : 'None',
       t.amount,
       t.payment_method.toUpperCase(),
-      t.trip_id ? `"${tripMap.get(t.trip_id) || 'Trip'}"` : '',
+      t.trip_id ? `"${(tripMap.get(t.trip_id) || 'Trip').replace(/"/g, '""')}"` : '',
       `"${(t.note || '').replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    // Prepend UTF-8 BOM \uFEFF for seamless Excel compatibility
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Spendwise_Export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Spendwise_${periodTitle}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 10. Excel (.xls) Export
+  const exportToExcel = (transactionsToExport = transactions, periodTitle = 'Financial Statement') => {
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+    const tripMap = new Map(trips.map((t) => [t.id, t.destination]));
+
+    let totalIncome = 0;
+    let totalExpense = 0;
+    const catSpendMap = new Map<string, number>();
+
+    transactionsToExport.forEach((t) => {
+      const cat = t.category_id ? categoryMap.get(t.category_id) || 'Uncategorized' : 'None';
+      if (t.type === 'income') {
+        totalIncome += t.amount;
+      } else {
+        totalExpense += t.amount;
+        catSpendMap.set(cat, (catSpendMap.get(cat) || 0) + t.amount);
+      }
+    });
+
+    const netSavings = totalIncome - totalExpense;
+    const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0;
+    const generatedAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    const escapeXml = (s: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    let categoryRows = '';
+    Array.from(catSpendMap.entries()).sort((a, b) => b[1] - a[1]).forEach(([name, spent]) => {
+      const pct = totalExpense > 0 ? Math.round((spent / totalExpense) * 100) : 0;
+      categoryRows += `   <Row>
+    <Cell ss:StyleID="Bold"><Data ss:Type="String">${escapeXml(name)}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Expense</Data></Cell>
+    <Cell ss:StyleID="Expense"><Data ss:Type="Number">${spent}</Data></Cell>
+    <Cell ss:StyleID="NumberCell"><Data ss:Type="String">${pct}%</Data></Cell>
+   </Row>\n`;
+    });
+
+    let transactionRows = '';
+    transactionsToExport.forEach((t) => {
+      const cat = escapeXml(t.category_id ? categoryMap.get(t.category_id) || 'General' : 'General');
+      const trip = escapeXml(t.trip_id ? tripMap.get(t.trip_id) || '-' : '-');
+      const note = escapeXml(t.note || '');
+      const typeStyle = t.type === 'income' ? 'Income' : 'Expense';
+      transactionRows += `   <Row>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${t.date}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${t.type.toUpperCase()}</Data></Cell>
+    <Cell><Data ss:Type="String">${cat}</Data></Cell>
+    <Cell><Data ss:Type="String">${trip}</Data></Cell>
+    <Cell ss:StyleID="${typeStyle}"><Data ss:Type="Number">${t.amount}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${t.payment_method.toUpperCase()}</Data></Cell>
+    <Cell><Data ss:Type="String">${note}</Data></Cell>
+   </Row>\n`;
+    });
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Spendwise</Author>
+  <Created>${generatedAt}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Color="#1E293B"/>
+  </Style>
+  <Style ss:ID="Title">
+   <Font ss:FontName="Segoe UI" ss:Size="16" ss:Bold="1" ss:Color="#4F46E5"/>
+  </Style>
+  <Style ss:ID="Header">
+   <Font ss:FontName="Segoe UI" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#4F46E5" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center"/>
+  </Style>
+  <Style ss:ID="SectionHeader">
+   <Font ss:FontName="Segoe UI" ss:Size="12" ss:Bold="1" ss:Color="#1E293B"/>
+   <Interior ss:Color="#EEF2FF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Bold">
+   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1"/>
+  </Style>
+  <Style ss:ID="Income">
+   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#10B981"/>
+   <Alignment ss:Horizontal="Right"/>
+  </Style>
+  <Style ss:ID="Expense">
+   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#EF4444"/>
+   <Alignment ss:Horizontal="Right"/>
+  </Style>
+  <Style ss:ID="NumberCell"><Alignment ss:Horizontal="Right"/></Style>
+  <Style ss:ID="CenterCell"><Alignment ss:Horizontal="Center"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Financial Summary">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="160"/>
+   <Column ss:Width="140"/>
+   <Column ss:Width="120"/>
+   <Row ss:Height="28"><Cell ss:StyleID="Title"><Data ss:Type="String">Spendwise Financial Statement</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">Period: ${escapeXml(periodTitle)} | Generated: ${generatedAt}</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+   <Row ss:Height="22">
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Executive Summary</Data></Cell>
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Amount (${currency.symbol})</Data></Cell>
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Status</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Bold"><Data ss:Type="String">Total Inflow (Income)</Data></Cell>
+    <Cell ss:StyleID="Income"><Data ss:Type="Number">${totalIncome}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Credit</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Bold"><Data ss:Type="String">Total Outflow (Expenses)</Data></Cell>
+    <Cell ss:StyleID="Expense"><Data ss:Type="Number">${totalExpense}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Debit</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Bold"><Data ss:Type="String">Net Savings Balance</Data></Cell>
+    <Cell ss:StyleID="${netSavings >= 0 ? 'Income' : 'Expense'}"><Data ss:Type="Number">${netSavings}</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${netSavings >= 0 ? 'Surplus' : 'Deficit'}</Data></Cell>
+   </Row>
+   <Row>
+    <Cell ss:StyleID="Bold"><Data ss:Type="String">Savings Rate</Data></Cell>
+    <Cell ss:StyleID="NumberCell"><Data ss:Type="String">${savingsRate}%</Data></Cell>
+    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${savingsRate >= 20 ? 'Healthy' : 'Needs Attention'}</Data></Cell>
+   </Row>
+   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
+   <Row ss:Height="22">
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Category Breakdown</Data></Cell>
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Type</Data></Cell>
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Spent (${currency.symbol})</Data></Cell>
+    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Share (%)</Data></Cell>
+   </Row>
+${categoryRows}
+  </Table>
+ </Worksheet>
+ <Worksheet ss:Name="Transactions Ledger">
+  <Table ss:DefaultRowHeight="20">
+   <Column ss:Width="90"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="140"/>
+   <Column ss:Width="120"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="220"/>
+   <Row ss:Height="24">
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Date</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Type</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Category</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Trip / Event</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Amount (${currency.symbol})</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Payment Method</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Notes</Data></Cell>
+   </Row>
+${transactionRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Spendwise_${periodTitle.replace(/\s+/g, '_')}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -702,6 +875,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         updateTrip,
         deleteTrip,
         exportToCSV,
+        exportToExcel,
       }}
     >
       {children}

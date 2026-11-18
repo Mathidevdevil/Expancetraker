@@ -1,18 +1,20 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFinance } from '@/context/finance-context';
 import { formatCurrency } from '@/lib/utils';
 import { CategoryIcon } from '@/components/category-icon';
+import { ExportModal } from '@/components/export-modal';
 import {
-  Download,
+  FileSpreadsheet,
   TrendingUp,
   TrendingDown,
   Percent,
 } from 'lucide-react';
 
 export default function ReportsPage() {
-  const { transactions, categories, currency, exportToCSV } = useFinance();
+  const { transactions, categories, currency } = useFinance();
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const monthlyFlow = useMemo(() => {
     const map = new Map<string, { monthKey: string; label: string; income: number; expense: number }>();
@@ -100,11 +102,11 @@ export default function ReportsPage() {
         </div>
 
         <button
-          onClick={() => exportToCSV(transactions)}
-          className="px-4 py-2.5 rounded-2xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-2 border border-border transition-colors self-start sm:self-auto"
+          onClick={() => setIsExportModalOpen(true)}
+          className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-all self-start sm:self-auto"
         >
-          <Download className="w-3.5 h-3.5" />
-          <span>Export All Data (CSV)</span>
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>Export Excel / CSV Sheet</span>
         </button>
       </div>
 
@@ -242,6 +244,11 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
     </div>
   );
 }

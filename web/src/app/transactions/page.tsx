@@ -5,12 +5,14 @@ import { useFinance } from '@/context/finance-context';
 import { formatCurrency, formatFriendlyDate, formatDate } from '@/lib/utils';
 import { CategoryIcon } from '@/components/category-icon';
 import { QuickAddModal } from '@/components/quick-add-modal';
+import { ExportModal } from '@/components/export-modal';
 import { Transaction } from '@/types/database';
 import {
   Search,
   Plus,
   Trash2,
   Edit2,
+  FileSpreadsheet,
   Download,
   Plane,
   X,
@@ -18,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function TransactionsPage() {
-  const { transactions, categories, trips, currency, deleteTransaction, exportToCSV } = useFinance();
+  const { transactions, categories, trips, currency, deleteTransaction } = useFinance();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'expense' | 'income'>('all');
@@ -28,6 +30,7 @@ export default function TransactionsPage() {
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -100,11 +103,11 @@ export default function TransactionsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => exportToCSV(filteredTransactions)}
+            onClick={() => setIsExportModalOpen(true)}
             className="px-4 py-2.5 rounded-2xl bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold flex items-center gap-2 border border-border transition-colors"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Export (Excel / CSV)</span>
           </button>
           <button
             onClick={() => setIsAddOpen(true)}
@@ -304,6 +307,13 @@ export default function TransactionsPage() {
           setEditingTransaction(null);
         }}
         editingTransaction={editingTransaction}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        transactionsToFilter={filteredTransactions}
       />
     </div>
   );

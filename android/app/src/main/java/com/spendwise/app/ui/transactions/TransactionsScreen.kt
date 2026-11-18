@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.ui.components.CategoryIconView
+import com.spendwise.app.ui.components.ExportBottomSheet
 import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassIconButton
 import com.spendwise.app.ui.components.glass.GlassRow
@@ -40,8 +41,10 @@ fun TransactionsScreen(
     isDark: Boolean = isSystemInDarkTheme()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val allTransactions by viewModel.allTransactions.collectAsState()
     val haptic = LocalHapticFeedback.current
     var pendingDeleteTransaction by remember { mutableStateOf<TransactionWithDetails?>(null) }
+    var isExportSheetOpen by remember { mutableStateOf(false) }
 
     // Group filtered transactions by friendly date
     val groupedTransactions = remember(state.transactions) {
@@ -78,20 +81,42 @@ fun TransactionsScreen(
             }
 
             val hasActiveFilters = state.searchQuery.isNotBlank() || state.filterType != "all" || state.filterCategoryId != null
-            if (hasActiveFilters) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (hasActiveFilters) {
+                    GlassIconButton(
+                        onClick = {
+                            viewModel.onSearchQueryChanged("")
+                            viewModel.onFilterTypeChanged("all")
+                            viewModel.onFilterCategoryChanged(null)
+                        },
+                        size = 42.dp,
+                        isDark = isDark
+                    ) {
+                        Icon(
+                            Icons.Default.FilterAltOff,
+                            contentDescription = "Clear Filters",
+                            tint = if (isDark) WarningAmber else AppleIndigo,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Download / Export Excel & CSV
                 GlassIconButton(
                     onClick = {
-                        viewModel.onSearchQueryChanged("")
-                        viewModel.onFilterTypeChanged("all")
-                        viewModel.onFilterCategoryChanged(null)
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        isExportSheetOpen = true
                     },
                     size = 42.dp,
                     isDark = isDark
                 ) {
                     Icon(
-                        Icons.Default.FilterAltOff,
-                        contentDescription = "Clear Filters",
-                        tint = if (isDark) WarningAmber else AppleIndigo,
+                        Icons.Default.FileDownload,
+                        contentDescription = "Export Excel Report",
+                        tint = if (isDark) AppleIndigoLight else AppleIndigo,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -291,6 +316,16 @@ fun TransactionsScreen(
                     pendingDeleteTransaction = null
                 },
                 isDark = isDark
+            )
+        }
+
+        // Export Excel & CSV Bottom Sheet
+        if (isExportSheetOpen) {
+            ExportBottomSheet(
+                transactions = allTransactions,
+                currencySymbol = state.currencySymbol,
+                isDark = isDark,
+                onDismiss = { isExportSheetOpen = false }
             )
         }
     }

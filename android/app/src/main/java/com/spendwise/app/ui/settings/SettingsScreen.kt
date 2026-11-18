@@ -26,18 +26,22 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spendwise.app.BuildConfig
+import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.data.remote.AppUpdateInfo
 import com.spendwise.app.data.remote.UpdateDownloadState
 import com.spendwise.app.data.remote.UpdateManager
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.data.repository.UserProfile
 import com.spendwise.app.ui.components.EditProfileDialog
+import com.spendwise.app.ui.components.ExportBottomSheet
 import com.spendwise.app.ui.components.UpdateBottomSheet
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -53,6 +57,12 @@ class SettingsViewModel @Inject constructor(
 
     var selectedCurrency by mutableStateOf(repository.selectedCurrency)
         private set
+
+    val currencySymbol: String
+        get() = repository.selectedCurrencySymbol
+
+    val allTransactions: StateFlow<List<TransactionWithDetails>> = repository.transactionsWithDetails
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val availableUpdate = MutableStateFlow<AppUpdateInfo?>(null)
     val isCheckingUpdate = MutableStateFlow(false)
@@ -125,8 +135,10 @@ fun SettingsScreen(
     val updateStatusMessage by viewModel.updateCheckStatusMessage.collectAsState()
     val availableUpdate by viewModel.availableUpdate.collectAsState()
     val downloadState by viewModel.downloadState.collectAsState()
+    val allTransactions by viewModel.allTransactions.collectAsState()
     var isEditProfileDialogOpen by remember { mutableStateOf(false) }
     var isCurrencyDialogOpen by remember { mutableStateOf(false) }
+    var isExportSheetOpen by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val scrollState = rememberScrollState()
 
@@ -508,6 +520,60 @@ fun SettingsScreen(
             }
         }
 
+        // Export Financial Statements (Excel & CSV)
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    isExportSheetOpen = true
+                }
+        ) {
+            Row(
+                modifier = Modifier.padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF107C41).copy(alpha = 0.15f), // Excel Green
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = null,
+                            tint = Color(0xFF107C41),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Export Financial Statement",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Download Excel, Monthly & Yearly sheets",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
         // About / Version Card with OTA In-App Updater
         Surface(
             shape = RoundedCornerShape(22.dp),
@@ -723,6 +789,15 @@ fun SettingsScreen(
             onStartDownload = { viewModel.startUpdateDownload() },
             onInstall = { viewModel.startUpdateDownload() },
             onDismiss = { viewModel.dismissUpdate() }
+        )
+    }
+
+    if (isExportSheetOpen) {
+        ExportBottomSheet(
+            transactions = allTransactions,
+            currencySymbol = viewModel.currencySymbol,
+            isDark = isDark,
+            onDismiss = { isExportSheetOpen = false }
         )
     }
 }
