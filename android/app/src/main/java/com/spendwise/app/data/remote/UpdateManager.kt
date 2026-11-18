@@ -77,7 +77,27 @@ class UpdateManager @Inject constructor(
             }
         }
 
-        // 2. Fallback to GitHub Releases API
+        // 2. Direct GitHub version.json fallback (High reliability, zero database setup needed)
+        try {
+            val rawUrl = URL("https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/version.json")
+            val conn = (rawUrl.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 5000
+                setRequestProperty("User-Agent", "Spendwise-Android")
+            }
+            if (conn.responseCode == 200) {
+                val jsonText = conn.inputStream.bufferedReader().use { it.readText() }
+                val update = json.decodeFromString<AppUpdateInfo>(jsonText)
+                if (update.versionCode > BuildConfig.VERSION_CODE) {
+                    Log.i("UpdateManager", "Found update in version.json: v${update.versionName} (${update.versionCode})")
+                    return@withContext update
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("UpdateManager", "GitHub version.json check skipped: ${e.message}")
+        }
+
+        // 3. Fallback to GitHub Releases API
         try {
             val url = URL("https://api.github.com/repos/Mathidevdevil/Expancetraker/releases/latest")
             val conn = (url.openConnection() as HttpURLConnection).apply {
