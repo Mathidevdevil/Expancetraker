@@ -10,6 +10,8 @@ import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 enum class ExportFilterMode {
     MONTHLY,
@@ -19,8 +21,8 @@ enum class ExportFilterMode {
 }
 
 enum class ExportFormat {
-    EXCEL, // XML Spreadsheet 2003 (.xls)
-    CSV    // Comma-Separated Values (.csv with UTF-8 BOM)
+    EXCEL, // Native OpenXML (.xlsx)
+    CSV    // Universal Comma-Separated Values (.csv with UTF-8 BOM)
 }
 
 object ReportExportManager {
@@ -88,9 +90,8 @@ object ReportExportManager {
     }
 
     /**
-     * Generates a Microsoft Excel XML Spreadsheet 2003 (.xls) file with 2 styled worksheets:
-     * - "Financial Summary" (KPIs, Cashflow, Category Distribution)
-     * - "Transactions Ledger" (Complete list of transactions)
+     * Generates a true, native Microsoft Excel OpenXML (.xlsx) file.
+     * Compatible with Microsoft Excel Mobile & Desktop, Google Sheets, LibreOffice, and WPS Office.
      */
     fun generateExcelFile(
         context: Context,
@@ -100,12 +101,11 @@ object ReportExportManager {
     ): File {
         val reportsDir = File(context.cacheDir, "reports").apply { if (!exists()) mkdirs() }
         val safeTitle = periodTitle.replace(" ", "_").replace("/", "-")
-        val file = File(reportsDir, "Spendwise_Report_${safeTitle}.xls")
+        val file = File(reportsDir, "Spendwise_Report_${safeTitle}.xlsx")
 
         var totalIncome = 0.0
         var totalExpense = 0.0
         val catSpendMap = mutableMapOf<String, Double>()
-        val catTypeMap = mutableMapOf<String, String>()
 
         for (item in transactions) {
             val t = item.transaction
@@ -115,7 +115,6 @@ object ReportExportManager {
             } else {
                 totalExpense += t.amount
                 catSpendMap[catName] = (catSpendMap[catName] ?: 0.0) + t.amount
-                catTypeMap[catName] = "Expense"
             }
         }
 
@@ -123,195 +122,165 @@ object ReportExportManager {
         val savingsRate = if (totalIncome > 0) ((netSavings / totalIncome) * 100).toInt() else 0
         val generatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
 
-        val xml = buildString {
-            append("""<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:html="http://www.w3.org/TR/REC-html40">
- <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Author>Spendwise Personal Finance</Author>
-  <Created>$generatedAt</Created>
-  <Company>Spendwise</Company>
- </DocumentProperties>
- <Styles>
-  <Style ss:ID="Default" ss:Name="Normal">
-   <Alignment ss:Vertical="Center"/>
-   <Font ss:FontName="Segoe UI" x:Family="Swiss" ss:Size="10" ss:Color="#1E293B"/>
-  </Style>
-  <Style ss:ID="Title">
-   <Font ss:FontName="Segoe UI" ss:Size="16" ss:Bold="1" ss:Color="#4F46E5"/>
-   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
-  </Style>
-  <Style ss:ID="Subtitle">
-   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Color="#64748B" ss:Italic="1"/>
-  </Style>
-  <Style ss:ID="Header">
-   <Font ss:FontName="Segoe UI" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/>
-   <Interior ss:Color="#4F46E5" ss:Pattern="Solid"/>
-   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#312E81"/>
-   </Borders>
-  </Style>
-  <Style ss:ID="SectionHeader">
-   <Font ss:FontName="Segoe UI" ss:Size="12" ss:Bold="1" ss:Color="#1E293B"/>
-   <Interior ss:Color="#EEF2FF" ss:Pattern="Solid"/>
-  </Style>
-  <Style ss:ID="Bold">
-   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#0F172A"/>
-  </Style>
-  <Style ss:ID="Income">
-   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#10B981"/>
-   <Alignment ss:Horizontal="Right"/>
-  </Style>
-  <Style ss:ID="Expense">
-   <Font ss:FontName="Segoe UI" ss:Size="10" ss:Bold="1" ss:Color="#EF4444"/>
-   <Alignment ss:Horizontal="Right"/>
-  </Style>
-  <Style ss:ID="NumberCell">
-   <Alignment ss:Horizontal="Right"/>
-  </Style>
-  <Style ss:ID="CenterCell">
-   <Alignment ss:Horizontal="Center"/>
-  </Style>
- </Styles>
+        // 1. Build Sheet 1: Transactions
+        val sheet1Xml = buildString {
+            append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cols>
+    <col min="1" max="1" width="14" customWidth="1"/>
+    <col min="2" max="2" width="12" customWidth="1"/>
+    <col min="3" max="3" width="22" customWidth="1"/>
+    <col min="4" max="4" width="16" customWidth="1"/>
+    <col min="5" max="5" width="14" customWidth="1"/>
+    <col min="6" max="6" width="10" customWidth="1"/>
+    <col min="7" max="7" width="16" customWidth="1"/>
+    <col min="8" max="8" width="32" customWidth="1"/>
+  </cols>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Date</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>Type</t></is></c>
+      <c r="C1" t="inlineStr"><is><t>Category</t></is></c>
+      <c r="D1" t="inlineStr"><is><t>Trip</t></is></c>
+      <c r="E1" t="inlineStr"><is><t>Amount</t></is></c>
+      <c r="F1" t="inlineStr"><is><t>Currency</t></is></c>
+      <c r="G1" t="inlineStr"><is><t>Payment Method</t></is></c>
+      <c r="H1" t="inlineStr"><is><t>Notes</t></is></c>
+    </row>
 """)
-
-            // -------------------------------------------------------------
-            // WORKSHEET 1: FINANCIAL SUMMARY
-            // -------------------------------------------------------------
-            append(""" <Worksheet ss:Name="Financial Summary">
-  <Table ss:DefaultRowHeight="20">
-   <Column ss:Width="160"/>
-   <Column ss:Width="140"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="120"/>
-
-   <Row ss:Height="28">
-    <Cell ss:StyleID="Title"><Data ss:Type="String">Spendwise Financial Statement</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Subtitle"><Data ss:Type="String">Period: ${escapeXml(periodTitle)} | Generated: $generatedAt</Data></Cell>
-   </Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- KPI Overview -->
-   <Row ss:Height="22">
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Executive Summary</Data></Cell>
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Amount ($currencySymbol)</Data></Cell>
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Status</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">Total Monthly Inflow (Income)</Data></Cell>
-    <Cell ss:StyleID="Income"><Data ss:Type="Number">$totalIncome</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Credit</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">Total Outflow (Expenses)</Data></Cell>
-    <Cell ss:StyleID="Expense"><Data ss:Type="Number">$totalExpense</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Debit</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">Net Savings Balance</Data></Cell>
-    <Cell ss:StyleID="${if (netSavings >= 0) "Income" else "Expense"}"><Data ss:Type="Number">$netSavings</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${if (netSavings >= 0) "Surplus" else "Deficit"}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">Savings Rate</Data></Cell>
-    <Cell ss:StyleID="NumberCell"><Data ss:Type="String">$savingsRate%</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${if (savingsRate >= 20) "Healthy" else "Needs Attention"}</Data></Cell>
-   </Row>
-   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">Total Transactions Count</Data></Cell>
-    <Cell ss:StyleID="NumberCell"><Data ss:Type="Number">${transactions.size}</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Verified</Data></Cell>
-   </Row>
-
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-   <Row><Cell><Data ss:Type="String"></Data></Cell></Row>
-
-   <!-- Category Breakdown Table -->
-   <Row ss:Height="22">
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Category Breakdown</Data></Cell>
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Type</Data></Cell>
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Spent ($currencySymbol)</Data></Cell>
-    <Cell ss:StyleID="SectionHeader"><Data ss:Type="String">Share (%)</Data></Cell>
-   </Row>
-""")
-
-            val sortedCategories = catSpendMap.entries.sortedByDescending { it.value }
-            for (entry in sortedCategories) {
-                val pct = if (totalExpense > 0) ((entry.value / totalExpense) * 100).toInt() else 0
-                append("""   <Row>
-    <Cell ss:StyleID="Bold"><Data ss:Type="String">${escapeXml(entry.key)}</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">Expense</Data></Cell>
-    <Cell ss:StyleID="Expense"><Data ss:Type="Number">${entry.value}</Data></Cell>
-    <Cell ss:StyleID="NumberCell"><Data ss:Type="String">$pct%</Data></Cell>
-   </Row>
-""")
-            }
-
-            append("""  </Table>
- </Worksheet>
-""")
-
-            // -------------------------------------------------------------
-            // WORKSHEET 2: TRANSACTIONS LEDGER
-            // -------------------------------------------------------------
-            append(""" <Worksheet ss:Name="Transactions Ledger">
-  <Table ss:DefaultRowHeight="20">
-   <Column ss:Width="90"/>
-   <Column ss:Width="80"/>
-   <Column ss:Width="140"/>
-   <Column ss:Width="120"/>
-   <Column ss:Width="100"/>
-   <Column ss:Width="110"/>
-   <Column ss:Width="220"/>
-
-   <Row ss:Height="24">
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Date</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Type</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Category</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Trip / Event</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Amount ($currencySymbol)</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Payment Method</Data></Cell>
-    <Cell ss:StyleID="Header"><Data ss:Type="String">Notes &amp; Details</Data></Cell>
-   </Row>
-""")
-
-            for (item in transactions) {
+            transactions.forEachIndexed { idx, item ->
+                val r = idx + 2
                 val t = item.transaction
-                val catName = escapeXml(item.category?.name ?: "General")
-                val tripName = escapeXml(item.trip?.destination ?: "-")
+                val date = escapeXml(t.date)
+                val type = if (t.type == "income") "Income" else "Expense"
+                val cat = escapeXml(item.category?.name ?: "General")
+                val trip = escapeXml(item.trip?.destination ?: "-")
                 val payMethod = escapeXml(t.paymentMethod.uppercase())
                 val note = escapeXml(t.note ?: "")
-                val typeStyle = if (t.type == "income") "Income" else "Expense"
-                val typeLabel = if (t.type == "income") "INCOME" else "EXPENSE"
+                val cur = escapeXml(currencySymbol)
 
-                append("""   <Row>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">${t.date}</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">$typeLabel</Data></Cell>
-    <Cell><Data ss:Type="String">$catName</Data></Cell>
-    <Cell><Data ss:Type="String">$tripName</Data></Cell>
-    <Cell ss:StyleID="$typeStyle"><Data ss:Type="Number">${t.amount}</Data></Cell>
-    <Cell ss:StyleID="CenterCell"><Data ss:Type="String">$payMethod</Data></Cell>
-    <Cell><Data ss:Type="String">$note</Data></Cell>
-   </Row>
+                append("""    <row r="$r">
+      <c r="A$r" t="inlineStr"><is><t>$date</t></is></c>
+      <c r="B$r" t="inlineStr"><is><t>$type</t></is></c>
+      <c r="C$r" t="inlineStr"><is><t>$cat</t></is></c>
+      <c r="D$r" t="inlineStr"><is><t>$trip</t></is></c>
+      <c r="E$r"><v>${t.amount}</v></c>
+      <c r="F$r" t="inlineStr"><is><t>$cur</t></is></c>
+      <c r="G$r" t="inlineStr"><is><t>$payMethod</t></is></c>
+      <c r="H$r" t="inlineStr"><is><t>$note</t></is></c>
+    </row>
 """)
             }
-
-            append("""  </Table>
- </Worksheet>
-</Workbook>
-""")
+            append("""  </sheetData>
+</worksheet>""")
         }
 
-        FileOutputStream(file).use { out ->
-            OutputStreamWriter(out, StandardCharsets.UTF_8).use { writer ->
-                writer.write(xml)
+        // 2. Build Sheet 2: Financial Summary
+        val sheet2Xml = buildString {
+            append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cols>
+    <col min="1" max="1" width="28" customWidth="1"/>
+    <col min="2" max="2" width="20" customWidth="1"/>
+    <col min="3" max="3" width="14" customWidth="1"/>
+  </cols>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Spendwise Financial Statement</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>Period: ${escapeXml(periodTitle)} | Generated: $generatedAt</t></is></c>
+    </row>
+    <row r="4">
+      <c r="A4" t="inlineStr"><is><t>Executive Metric</t></is></c>
+      <c r="B4" t="inlineStr"><is><t>Amount (${escapeXml(currencySymbol)})</t></is></c>
+    </row>
+    <row r="5">
+      <c r="A5" t="inlineStr"><is><t>Total Income (Inflow)</t></is></c>
+      <c r="B5"><v>$totalIncome</v></c>
+    </row>
+    <row r="6">
+      <c r="A6" t="inlineStr"><is><t>Total Expense (Outflow)</t></is></c>
+      <c r="B6"><v>$totalExpense</v></c>
+    </row>
+    <row r="7">
+      <c r="A7" t="inlineStr"><is><t>Net Savings</t></is></c>
+      <c r="B7"><v>$netSavings</v></c>
+    </row>
+    <row r="8">
+      <c r="A8" t="inlineStr"><is><t>Savings Rate</t></is></c>
+      <c r="B8" t="inlineStr"><is><t>$savingsRate%</t></is></c>
+    </row>
+    <row r="9">
+      <c r="A9" t="inlineStr"><is><t>Total Transactions Count</t></is></c>
+      <c r="B9"><v>${transactions.size}</v></c>
+    </row>
+    <row r="11">
+      <c r="A11" t="inlineStr"><is><t>Category Breakdown</t></is></c>
+      <c r="B11" t="inlineStr"><is><t>Total Spent (${escapeXml(currencySymbol)})</t></is></c>
+      <c r="C11" t="inlineStr"><is><t>Share (%)</t></is></c>
+    </row>
+""")
+            val sortedCategories = catSpendMap.entries.sortedByDescending { it.value }
+            var startR = 12
+            for (entry in sortedCategories) {
+                val pct = if (totalExpense > 0) ((entry.value / totalExpense) * 100).toInt() else 0
+                val cat = escapeXml(entry.key)
+                append("""    <row r="$startR">
+      <c r="A$startR" t="inlineStr"><is><t>$cat</t></is></c>
+      <c r="B$startR"><v>${entry.value}</v></c>
+      <c r="C$startR" t="inlineStr"><is><t>$pct%</t></is></c>
+    </row>
+""")
+                startR++
+            }
+            append("""  </sheetData>
+</worksheet>""")
+        }
+
+        // 3. Package as standard OpenXML .xlsx (Zip archive)
+        val contentTypesXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>"""
+
+        val rootRelsXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>"""
+
+        val wbRelsXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+</Relationships>"""
+
+        val workbookXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Transactions" sheetId="1" r:id="rId1"/>
+    <sheet name="Summary" sheetId="2" r:id="rId2"/>
+  </sheets>
+</workbook>"""
+
+        FileOutputStream(file).use { fos ->
+            ZipOutputStream(fos).use { zos ->
+                fun writeZipEntry(name: String, content: String) {
+                    zos.putNextEntry(ZipEntry(name))
+                    zos.write(content.toByteArray(StandardCharsets.UTF_8))
+                    zos.closeEntry()
+                }
+
+                writeZipEntry("[Content_Types].xml", contentTypesXml)
+                writeZipEntry("_rels/.rels", rootRelsXml)
+                writeZipEntry("xl/_rels/workbook.xml.rels", wbRelsXml)
+                writeZipEntry("xl/workbook.xml", workbookXml)
+                writeZipEntry("xl/worksheets/sheet1.xml", sheet1Xml)
+                writeZipEntry("xl/worksheets/sheet2.xml", sheet2Xml)
             }
         }
 
@@ -319,7 +288,8 @@ object ReportExportManager {
     }
 
     /**
-     * Generates a CSV file with UTF-8 BOM (\uFEFF) for Microsoft Excel compatibility.
+     * Generates a clean, standard CSV file with UTF-8 BOM (\uFEFF).
+     * Begins directly with clean table headers for immediate sorting and filtering.
      */
     fun generateCsvFile(
         context: Context,
@@ -341,29 +311,34 @@ object ReportExportManager {
 
         FileOutputStream(file).use { out ->
             OutputStreamWriter(out, StandardCharsets.UTF_8).use { writer ->
-                // Write UTF-8 Byte Order Mark (BOM) so Excel opens UTF-8 properly
+                // Write UTF-8 Byte Order Mark (BOM) so Excel opens UTF-8 symbols natively
                 writer.write("\uFEFF")
 
-                // Header Metadata
-                writer.write("Spendwise Financial Statement\n")
-                writer.write("Report Period,${escapeCsv(periodTitle)}\n")
-                writer.write("Currency,${escapeCsv(currencySymbol)}\n")
-                writer.write("Total Inflow,${totalIncome}\n")
-                writer.write("Total Outflow,${totalExpense}\n")
-                writer.write("Net Balance,${net}\n")
-                writer.write("Total Transactions,${transactions.size}\n\n")
+                // Line 1: Standard Table Header
+                writer.write("Date,Type,Category,Trip,Amount,Currency,Payment Method,Notes\r\n")
 
-                // Table Header
-                writer.write("Date,Type,Category,Trip/Event,Amount ($currencySymbol),Payment Method,Notes\n")
-
+                // Transaction rows
                 for (item in transactions) {
                     val t = item.transaction
-                    val catName = escapeCsv(item.category?.name ?: "General")
-                    val tripDest = escapeCsv(item.trip?.destination ?: "")
+                    val date = t.date
+                    val type = if (t.type == "income") "Income" else "Expense"
+                    val cat = escapeCsv(item.category?.name ?: "General")
+                    val trip = escapeCsv(item.trip?.destination ?: "-")
+                    val amt = String.format(Locale.US, "%.2f", t.amount)
+                    val cur = escapeCsv(currencySymbol)
+                    val pay = escapeCsv(t.paymentMethod.uppercase())
                     val note = escapeCsv(t.note ?: "")
-                    val sign = if (t.type == "income") "+" else "-"
-                    writer.write("${t.date},${t.type.uppercase()},$catName,$tripDest,$sign${t.amount},${t.paymentMethod.uppercase()},$note\n")
+                    writer.write("$date,$type,$cat,$trip,$amt,$cur,$pay,$note\r\n")
                 }
+
+                // Summary block at the end
+                writer.write("\r\n")
+                writer.write("--- Financial Summary ---\r\n")
+                writer.write("Report Period,${escapeCsv(periodTitle)}\r\n")
+                writer.write("Total Inflow,${String.format(Locale.US, "%.2f", totalIncome)}\r\n")
+                writer.write("Total Outflow,${String.format(Locale.US, "%.2f", totalExpense)}\r\n")
+                writer.write("Net Balance,${String.format(Locale.US, "%.2f", net)}\r\n")
+                writer.write("Total Transactions,${transactions.size}\r\n")
             }
         }
 
@@ -372,7 +347,7 @@ object ReportExportManager {
 
     fun shareExportedFile(context: Context, file: File, format: ExportFormat) {
         val mimeType = if (format == ExportFormat.EXCEL) {
-            "application/vnd.ms-excel"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         } else {
             "text/csv"
         }
@@ -407,7 +382,7 @@ object ReportExportManager {
 
     private fun escapeCsv(text: String): String {
         val escaped = text.replace("\"", "\"\"")
-        return if (escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n")) {
+        return if (escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") || escaped.contains("\r")) {
             "\"$escaped\""
         } else {
             escaped

@@ -452,7 +452,7 @@ fun ExportBottomSheet(
                                 color = if (isDark) Color.White else Color(0xFF0F172A)
                             )
                             Text(
-                                text = ".xls (Formatted)",
+                                text = ".xlsx (Workbook)",
                                 fontFamily = SfPro,
                                 fontSize = 11.sp,
                                 color = Color(0xFF107C41),
@@ -626,7 +626,7 @@ fun ExportBottomSheet(
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (selectedFormat == ExportFormat.EXCEL) "Download Excel (.xls)" else "Download CSV (.csv)",
+                    text = if (selectedFormat == ExportFormat.EXCEL) "Download Excel (.xlsx)" else "Download CSV (.csv)",
                     fontFamily = SfPro,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp

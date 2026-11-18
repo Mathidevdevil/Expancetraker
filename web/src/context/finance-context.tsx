@@ -559,30 +559,53 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // 9. CSV Export
+  // 9. CSV & Excel Export
   const exportToCSV = (transactionsToExport = transactions, periodTitle = 'Financial_Report') => {
     const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
     const tripMap = new Map(trips.map((t) => [t.id, t.destination]));
 
-    const headers = ['ID', 'Date', 'Type', 'Category', 'Amount', 'Payment Method', 'Trip', 'Notes'];
-    const rows = transactionsToExport.map((t) => [
-      t.id,
-      t.date,
-      t.type.toUpperCase(),
-      t.category_id ? `"${(categoryMap.get(t.category_id) || 'Uncategorized').replace(/"/g, '""')}"` : 'None',
-      t.amount,
-      t.payment_method.toUpperCase(),
-      t.trip_id ? `"${(tripMap.get(t.trip_id) || 'Trip').replace(/"/g, '""')}"` : '',
-      `"${(t.note || '').replace(/"/g, '""')}"`,
-    ]);
+    let totalIncome = 0;
+    let totalExpense = 0;
 
-    // Prepend UTF-8 BOM \uFEFF for seamless Excel compatibility
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const headers = ['Date', 'Type', 'Category', 'Trip', 'Amount', 'Currency', 'Payment Method', 'Notes'];
+    const rows = transactionsToExport.map((t) => {
+      if (t.type === 'income') totalIncome += t.amount;
+      else totalExpense += t.amount;
+
+      const cat = (t.category_id ? categoryMap.get(t.category_id) || 'General' : 'General').replace(/"/g, '""');
+      const trip = (t.trip_id ? tripMap.get(t.trip_id) || '-' : '-').replace(/"/g, '""');
+      const note = (t.note || '').replace(/"/g, '""');
+
+      return [
+        t.date,
+        t.type === 'income' ? 'Income' : 'Expense',
+        `"${cat}"`,
+        `"${trip}"`,
+        t.amount.toFixed(2),
+        `"${currency.symbol}"`,
+        t.payment_method.toUpperCase(),
+        `"${note}"`,
+      ].join(',');
+    });
+
+    const net = totalIncome - totalExpense;
+    const summaryRows = [
+      '',
+      '--- Financial Summary ---',
+      `Report Period,"${periodTitle}"`,
+      `Total Inflow,${totalIncome.toFixed(2)}`,
+      `Total Outflow,${totalExpense.toFixed(2)}`,
+      `Net Balance,${net.toFixed(2)}`,
+      `Total Transactions,${transactionsToExport.length}`,
+    ];
+
+    // Prepend UTF-8 BOM \uFEFF so Excel opens UTF-8 symbols and currency cleanly
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows, ...summaryRows].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Spendwise_${periodTitle}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Spendwise_${periodTitle.replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -1,7 +1,7 @@
 {
-  "version_code": 2,
-  "version_name": "1.0.1",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.1.apk",
-  "changelog": "• New Feature: Excel Sheet (.xls) and CSV statement export\n• Download Monthly, Yearly, and Date-wise financial reports\n• Live transaction preview & cashflow summary before export\n• 1-Tap sharing to WhatsApp, Google Drive, and Excel\n• Apple SF Pro typography & performance optimizations",
+  "version_code": 3,
+  "version_name": "1.0.2",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.2.apk",
+  "changelog": "• Fixed Excel Export: Native Microsoft Excel OpenXML (.xlsx) support with Google Sheets & MS Excel compatibility\n• Clean CSV statement export with UTF-8 BOM\n• Executive Summary & Category Breakdown tables\n• Enhanced stability & performance",
   "is_mandatory": false
 }
