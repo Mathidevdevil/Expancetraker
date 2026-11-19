@@ -176,10 +176,25 @@ class DashboardViewModel @Inject constructor(
         tripId: String?,
         paymentMethod: String,
         note: String?,
+        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
         type: String = "expense"
     ) {
         viewModelScope.launch {
-            repository.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, type = type)
+            repository.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, date = date, type = type)
+        }
+    }
+
+    fun addCategory(name: String, type: String, icon: String, color: String) {
+        viewModelScope.launch {
+            val cat = CategoryEntity(
+                name = name,
+                type = type,
+                icon = icon,
+                color = color,
+                isDefault = false,
+                syncStatus = SyncStatus.PENDING_INSERT
+            )
+            repository.insertCategory(cat)
         }
     }
 

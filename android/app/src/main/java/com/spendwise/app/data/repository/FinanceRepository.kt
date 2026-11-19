@@ -327,6 +327,23 @@ class FinanceRepository @Inject constructor(
         }
     }
 
+    suspend fun updateTransaction(transaction: TransactionEntity) {
+        val canonicalCatId = resolveCanonicalCategoryId(transaction.categoryId)
+        val cleanTx = if (canonicalCatId != transaction.categoryId) transaction.copy(categoryId = canonicalCatId) else transaction
+        val updated = cleanTx.copy(syncStatus = SyncStatus.PENDING_UPDATE)
+        transactionDao.insertOrUpdate(updated)
+        if (supabaseProvider.isConfigured && updated.userId != "demo-user") {
+            withContext(Dispatchers.IO) {
+                try {
+                    supabaseProvider.getClient().from("transactions").upsert(updated)
+                    transactionDao.insertOrUpdate(updated.copy(syncStatus = SyncStatus.SYNCED))
+                } catch (e: Exception) {
+                    Log.w("FinanceRepository", "Error updating transaction in Supabase: ${e.message}")
+                }
+            }
+        }
+    }
+
     suspend fun deleteTransaction(id: String) {
         transactionDao.markForDeletion(id)
         if (supabaseProvider.isConfigured) {
@@ -372,17 +389,24 @@ class FinanceRepository @Inject constructor(
         }
     }
 
-    suspend fun setBudget(categoryId: String, month: Int, year: Int, amount: Double) {
+    suspend fun setBudget(
+        categoryId: String,
+        month: Int,
+        year: Int,
+        amount: Double,
+        existingId: String? = null
+    ) {
         val currentUserId = getEffectiveUserId()
         val canonicalCatId = resolveCanonicalCategoryId(categoryId) ?: categoryId
         val budget = BudgetEntity(
+            id = existingId ?: UUID.randomUUID().toString(),
             userId = currentUserId,
             categoryId = canonicalCatId,
             month = month,
             year = year,
             amount = amount,
             createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date()),
-            syncStatus = SyncStatus.PENDING_INSERT
+            syncStatus = if (existingId != null) SyncStatus.PENDING_UPDATE else SyncStatus.PENDING_INSERT
         )
         budgetDao.insertOrUpdate(budget)
 

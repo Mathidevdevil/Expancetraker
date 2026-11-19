@@ -248,8 +248,12 @@ fun MainAppScaffold(
                 categories = dashState.categories,
                 trips = dashState.activeTrips,
                 currencySymbol = dashState.currencySymbol,
-                onSave = { amount, categoryId, tripId, paymentMethod, note, type ->
-                    dashboardViewModel.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, type)
+                isDark = isDark,
+                onAddCategory = { name, type, icon, color ->
+                    dashboardViewModel.addCategory(name, type, icon, color)
+                },
+                onSave = { amount, categoryId, tripId, paymentMethod, note, date, type ->
+                    dashboardViewModel.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, date = date, type = type)
                     isQuickAddOpen = false
                 }
             )

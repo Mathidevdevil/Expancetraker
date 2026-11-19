@@ -1,7 +1,7 @@
 {
-  "version_code": 3,
-  "version_name": "1.0.2",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.2.apk",
-  "changelog": "• Fixed Excel Export: Native Microsoft Excel OpenXML (.xlsx) support with Google Sheets & MS Excel compatibility\n• Clean CSV statement export with UTF-8 BOM\n• Executive Summary & Category Breakdown tables\n• Enhanced stability & performance",
+  "version_code": 4,
+  "version_name": "1.0.3",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.3.apk",
+  "changelog": "• Inline (+) New Category creation directly in Quick Add modal\n• Custom Date Picker & Edit Date with calendar selector\n• Activity Screen: Edit option for transactions (amount, category, date, notes, payment method)\n• Budgets Screen: Edit option for existing targets with quick increment chips\n• Crisp container borders & contrast optimization for Light and Dark modes",
   "is_mandatory": false
 }

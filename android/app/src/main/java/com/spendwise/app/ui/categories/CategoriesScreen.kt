@@ -265,6 +265,11 @@ fun AddCategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.border(
+            1.dp,
+            if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
+            RoundedCornerShape(26.dp)
+        ),
         shape = RoundedCornerShape(26.dp),
         containerColor = if (isDark) SolidFallbackDark else SolidFallbackLight,
         title = {

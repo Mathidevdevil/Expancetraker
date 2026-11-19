@@ -176,13 +176,13 @@ alter table public.app_updates replica identity full;
 -- Grant public access so any installed Android app can check for latest release
 grant select on table public.app_updates to anon, authenticated;
 
--- Release v1.0.2 (Native .xlsx Excel Workbook & Clean CSV Export)
+-- Release v1.0.3 (Inline (+) Category, Edit Date, Activity Edit, Budget Target Edit, Container Borders)
 insert into public.app_updates (version_code, version_name, apk_url, changelog, is_mandatory)
 values (
-    3,
-    '1.0.2',
-    'https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.2.apk',
-    '• Fixed Excel Export: Native OpenXML (.xlsx) support with Google Sheets & MS Excel compatibility\n• Clean CSV statement export with UTF-8 BOM\n• Multi-tab executive summaries & category distribution\n• Enhanced performance & stability',
+    4,
+    '1.0.3',
+    'https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.3.apk',
+    '• Inline (+) New Category creation directly in Quick Add modal\n• Custom Date Picker & Edit Date with calendar selector\n• Activity Screen: Edit option for transactions (amount, category, date, notes, payment method)\n• Budgets Screen: Edit option for existing targets with quick increment chips\n• Crisp container borders & contrast optimization for Light and Dark modes',
     false
 )
 on conflict (version_code) do update set

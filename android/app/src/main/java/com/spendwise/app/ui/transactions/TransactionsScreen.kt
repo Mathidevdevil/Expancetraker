@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.spendwise.app.data.model.TransactionWithDetails
 import com.spendwise.app.ui.components.CategoryIconView
 import com.spendwise.app.ui.components.ExportBottomSheet
+import com.spendwise.app.ui.components.QuickAddBottomSheet
 import com.spendwise.app.ui.components.glass.GlassDeleteConfirmDialog
 import com.spendwise.app.ui.components.glass.GlassIconButton
 import com.spendwise.app.ui.components.glass.GlassRow
@@ -44,6 +45,7 @@ fun TransactionsScreen(
     val allTransactions by viewModel.allTransactions.collectAsState()
     val haptic = LocalHapticFeedback.current
     var pendingDeleteTransaction by remember { mutableStateOf<TransactionWithDetails?>(null) }
+    var editingTransaction by remember { mutableStateOf<TransactionWithDetails?>(null) }
     var isExportSheetOpen by remember { mutableStateOf(false) }
 
     // Group filtered transactions by friendly date
@@ -289,6 +291,10 @@ fun TransactionsScreen(
                             item = item,
                             currencySymbol = state.currencySymbol,
                             isDark = isDark,
+                            onEdit = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                editingTransaction = item
+                            },
                             onDelete = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 pendingDeleteTransaction = item
@@ -297,6 +303,34 @@ fun TransactionsScreen(
                     }
                 }
             }
+        }
+
+        // Edit Transaction Bottom Sheet
+        editingTransaction?.let { item ->
+            QuickAddBottomSheet(
+                onDismiss = { editingTransaction = null },
+                categories = state.categories,
+                trips = state.trips,
+                currencySymbol = state.currencySymbol,
+                isDark = isDark,
+                initialTransaction = item.transaction,
+                onAddCategory = { name, type, icon, color ->
+                    viewModel.addCategory(name, type, icon, color)
+                },
+                onSave = { amount, categoryId, tripId, paymentMethod, note, date, type ->
+                    val updated = item.transaction.copy(
+                        amount = amount,
+                        categoryId = categoryId,
+                        tripId = tripId,
+                        paymentMethod = paymentMethod,
+                        note = note,
+                        date = date,
+                        type = type
+                    )
+                    viewModel.updateTransaction(updated)
+                    editingTransaction = null
+                }
+            )
         }
 
         // Delete Confirmation Dialog
@@ -374,6 +408,7 @@ fun TransactionRowItem(
     item: TransactionWithDetails,
     currencySymbol: String,
     isDark: Boolean,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val isIncome = item.transaction.type == "income"
@@ -421,6 +456,7 @@ fun TransactionRowItem(
     ) {
         GlassRow(
             isDark = isDark,
+            onClick = onEdit,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -456,7 +492,7 @@ fun TransactionRowItem(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = if (isIncome) {
@@ -469,6 +505,18 @@ fun TransactionRowItem(
                         color = if (isIncome) IncomeEmerald else if (isDark) TextPrimaryDark else TextPrimaryLight,
                         maxLines = 1
                     )
+
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit Transaction",
+                            tint = if (isDark) AppleIndigoLight else AppleIndigo,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
                     IconButton(
                         onClick = onDelete,

@@ -83,6 +83,26 @@ class TransactionsViewModel @Inject constructor(
         _filterCategoryId.value = categoryId
     }
 
+    fun updateTransaction(transaction: TransactionEntity) {
+        viewModelScope.launch {
+            repository.updateTransaction(transaction)
+        }
+    }
+
+    fun addCategory(name: String, type: String, icon: String, color: String) {
+        viewModelScope.launch {
+            val cat = CategoryEntity(
+                name = name,
+                type = type,
+                icon = icon,
+                color = color,
+                isDefault = false,
+                syncStatus = SyncStatus.PENDING_INSERT
+            )
+            repository.insertCategory(cat)
+        }
+    }
+
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             repository.deleteTransaction(id)

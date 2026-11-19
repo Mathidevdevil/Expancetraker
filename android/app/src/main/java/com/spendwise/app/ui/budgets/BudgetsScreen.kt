@@ -1,5 +1,7 @@
 package com.spendwise.app.ui.budgets
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -121,6 +123,12 @@ class BudgetsViewModel @Inject constructor(
         }
     }
 
+    fun updateBudget(budgetId: String, categoryId: String, amount: Double) {
+        viewModelScope.launch {
+            repository.setBudget(categoryId, currentMonth, currentYear, amount, existingId = budgetId)
+        }
+    }
+
     fun deleteBudget(budgetId: String) {
         viewModelScope.launch {
             repository.deleteBudget(budgetId)
@@ -135,6 +143,7 @@ fun BudgetsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var isAddDialogOpen by remember { mutableStateOf(false) }
+    var editingBudget by remember { mutableStateOf<BudgetItemUi?>(null) }
     var pendingDeleteBudget by remember { mutableStateOf<BudgetItemUi?>(null) }
     val haptic = LocalHapticFeedback.current
 
@@ -309,6 +318,10 @@ fun BudgetsScreen(
                 GlassRow(
                     isDark = isDark,
                     shape = RoundedCornerShape(22.dp),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        editingBudget = item
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -376,6 +389,21 @@ fun BudgetsScreen(
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        editingBudget = item
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "Edit Target",
+                                        tint = if (isDark) AppleIndigoLight else AppleIndigo,
+                                        modifier = Modifier.size(19.dp)
+                                    )
                                 }
 
                                 IconButton(
@@ -459,6 +487,160 @@ fun BudgetsScreen(
             }
         )
     }
+
+    editingBudget?.let { item ->
+        EditBudgetDialog(
+            item = item,
+            currencySymbol = state.currencySymbol,
+            isDark = isDark,
+            onDismiss = { editingBudget = null },
+            onSave = { newAmount ->
+                viewModel.updateBudget(item.budget.id, item.budget.categoryId, newAmount)
+                editingBudget = null
+            }
+        )
+    }
+}
+
+@Composable
+fun EditBudgetDialog(
+    item: BudgetItemUi,
+    currencySymbol: String,
+    isDark: Boolean = isSystemInDarkTheme(),
+    onDismiss: () -> Unit,
+    onSave: (amount: Double) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val initialAmt = item.budget.amount
+    var amountText by remember {
+        mutableStateOf(if (initialAmt % 1.0 == 0.0) initialAmt.toLong().toString() else initialAmt.toString())
+    }
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = if (isDark) Color(0x1AFFFFFF) else Color(0x73FFFFFF),
+        unfocusedContainerColor = if (isDark) Color(0x0FFFFFFF) else Color(0x52FFFFFF),
+        focusedBorderColor = if (isDark) AppleIndigoLight else AppleIndigo,
+        unfocusedBorderColor = if (isDark) Color(0x33FFFFFF) else Color(0x2E0F172A),
+        focusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight,
+        unfocusedTextColor = if (isDark) TextPrimaryDark else TextPrimaryLight
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.border(
+            1.dp,
+            if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
+            RoundedCornerShape(26.dp)
+        ),
+        shape = RoundedCornerShape(26.dp),
+        containerColor = if (isDark) SolidFallbackDark else SolidFallbackLight,
+        title = {
+            Text(
+                "Edit Target",
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextPrimaryDark else TextPrimaryLight
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Category Banner
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isDark) GlassFillDark else GlassFillLight)
+                        .border(1.dp, if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush, RoundedCornerShape(16.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CategoryIconView(
+                        iconName = item.category?.icon ?: "Tag",
+                        colorHex = item.category?.color ?: "#5B4BE8",
+                        size = 38.dp
+                    )
+                    Column {
+                        Text(
+                            text = item.category?.name ?: "Category",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                        )
+                        Text(
+                            text = "Currently spent: ${CurrencyFormatter.format(item.spent, currencySymbol, false)}",
+                            fontSize = 12.sp,
+                            color = if (isDark) TextMutedDark else TextMutedLight
+                        )
+                    }
+                }
+
+                // Quick Increment Chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(500, 1000, 2000, 5000).forEach { inc ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isDark) GlassFillDark else GlassFillLight)
+                                .border(1.dp, if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    val cur = amountText.toDoubleOrNull() ?: 0.0
+                                    amountText = (cur + inc).toLong().toString()
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "+$inc",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) TextPrimaryDark else TextPrimaryLight
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Monthly Budget Limit ($currencySymbol)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            GlassGradientButton(
+                text = "Update Target",
+                onClick = {
+                    val amt = amountText.toDoubleOrNull()
+                    if (amt != null && amt > 0) {
+                        onSave(amt)
+                    }
+                },
+                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    "Cancel",
+                    color = if (isDark) TextMutedDark else TextMutedLight
+                )
+            }
+        }
+    )
 }
 
 @Composable
@@ -474,6 +656,11 @@ fun AddBudgetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.border(
+            1.dp,
+            if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush,
+            RoundedCornerShape(26.dp)
+        ),
         shape = RoundedCornerShape(26.dp),
         containerColor = if (isDark) SolidFallbackDark else SolidFallbackLight,
         title = {

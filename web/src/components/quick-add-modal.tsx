@@ -5,7 +5,7 @@ import { useFinance } from '@/context/finance-context';
 import { Modal } from './ui/modal';
 import { CategoryIcon } from './category-icon';
 import { TransactionType, PaymentMethod, Transaction } from '@/types/database';
-import { Calendar, CreditCard, Tag, Plane } from 'lucide-react';
+import { Calendar, CreditCard, Tag, Plane, Plus } from 'lucide-react';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -187,6 +187,33 @@ export function QuickAddModal({
             Select Category
           </label>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto p-1.5 border border-border rounded-2xl bg-secondary/30">
+            <button
+              type="button"
+              onClick={async () => {
+                const name = window.prompt(`New ${type} category name:`);
+                if (name && name.trim()) {
+                  try {
+                    const newCat = await addCategory({
+                      name: name.trim(),
+                      type,
+                      icon: type === 'income' ? 'DollarSign' : 'Tag',
+                      color: type === 'income' ? '#10B981' : '#5B4BE8'
+                    });
+                    if (newCat?.id) setCategoryId(newCat.id);
+                  } catch (e) {
+                    console.error('Failed to create category:', e);
+                  }
+                }
+              }}
+              className="flex flex-col items-center justify-center p-2 rounded-xl border border-dashed border-primary/50 text-center transition-all hover:bg-primary/10 text-primary cursor-pointer"
+            >
+              <div className="w-[22px] h-[22px] flex items-center justify-center rounded-full bg-primary/15">
+                <Plus size={14} className="text-primary" />
+              </div>
+              <span className="text-[11px] font-bold mt-1 text-primary">
+                + New
+              </span>
+            </button>
             {filteredCategories.map((cat) => {
               const isSelected = categoryId === cat.id;
               return (
