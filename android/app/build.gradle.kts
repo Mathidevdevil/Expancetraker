@@ -25,10 +25,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("spendwise-release.jks")
-            storePassword = "spendwise2026"
-            keyAlias = "spendwise"
-            keyPassword = "spendwise2026"
+            storeFile = file("spendwise-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
             enableV1Signing = true
             enableV2Signing = true
             enableV3Signing = true
