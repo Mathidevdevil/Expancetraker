@@ -1,7 +1,7 @@
 {
-  "version_code": 4,
-  "version_name": "1.0.3",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.3.apk",
-  "changelog": "• Inline (+) New Category creation directly in Quick Add modal\n• Custom Date Picker & Edit Date with calendar selector\n• Activity Screen: Edit option for transactions (amount, category, date, notes, payment method)\n• Budgets Screen: Edit option for existing targets with quick increment chips\n• Crisp container borders & contrast optimization for Light and Dark modes",
+  "version_code": 5,
+  "version_name": "1.0.4",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.4.apk",
+  "changelog": "• Automatic Offline Sync: Offline expenses & income sync instantly when device reconnects online\n• Google Sign-In & Release SHA-1 support\n• Google Play Protect installation tips & stability improvements",
   "is_mandatory": false
 }
