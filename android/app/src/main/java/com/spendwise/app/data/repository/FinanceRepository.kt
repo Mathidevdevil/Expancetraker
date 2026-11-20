@@ -1,6 +1,10 @@
 package com.spendwise.app.data.repository
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import com.spendwise.app.data.local.AppDatabase
 import com.spendwise.app.data.model.*
@@ -46,6 +50,29 @@ class FinanceRepository @Inject constructor(
             } catch (e: Exception) {
                 Log.w("FinanceRepository", "Error cleaning legacy categories: ${e.message}")
             }
+            // Trigger automatic sync on launch
+            syncPendingToCloud()
+        }
+
+        // Automatic Network Connectivity Callback:
+        // Automatically syncs offline-created records to Supabase the instant device goes back online!
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            if (cm != null) {
+                val request = NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    .build()
+                cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        Log.i("FinanceRepository", "Device back online! Syncing pending offline records...")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            syncPendingToCloud()
+                        }
+                    }
+                })
+            }
+        } catch (e: Exception) {
+            Log.w("FinanceRepository", "Failed to register network callback: ${e.message}")
         }
     }
 
@@ -201,6 +228,143 @@ class FinanceRepository @Inject constructor(
         transactionDao.getTransactionsForTrip(tripId)
 
     /**
+     * Complete Two-Way Sync:
+     * 1. Pushes all pending offline transactions, categories, budgets, and trips to Supabase.
+     * 2. Removes any items marked for deletion while offline from Supabase and Room.
+     * 3. Pulls down any remote updates from Supabase into local Room.
+     */
+    suspend fun syncPendingToCloud() = withContext(Dispatchers.IO) {
+        if (!supabaseProvider.isConfigured) return@withContext
+        val currentUserId = getEffectiveUserId()
+        if (currentUserId == "demo-user") return@withContext
+
+        try {
+            val client = supabaseProvider.getClient()
+
+            // 1. Sync Pending Categories (so category IDs exist for transactions)
+            try {
+                val pendingCats = categoryDao.getPendingSyncCategories()
+                for (cat in pendingCats) {
+                    try {
+                        val targetCat = if (cat.userId.isNullOrBlank() && currentUserId != "user@spendwise.app") {
+                            cat.copy(userId = currentUserId)
+                        } else cat
+                        client.from("categories").upsert(targetCat)
+                        categoryDao.updateSyncStatus(cat.id, SyncStatus.SYNCED)
+                        Log.i("FinanceRepository", "Synced offline category ${cat.name} to cloud")
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed syncing pending category ${cat.id}: ${e.message}")
+                    }
+                }
+
+                val pendingDeleteCats = categoryDao.getPendingDeleteCategories()
+                for (cat in pendingDeleteCats) {
+                    try {
+                        client.from("categories").delete { filter { eq("id", cat.id) } }
+                        categoryDao.deletePermanently(cat.id)
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed deleting remote category ${cat.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FinanceRepository", "Error syncing pending categories: ${e.message}")
+            }
+
+            // 2. Sync Pending Trips
+            try {
+                val pendingTrips = tripDao.getPendingSyncTrips()
+                for (trip in pendingTrips) {
+                    try {
+                        val targetTrip = if (trip.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
+                            trip.copy(userId = currentUserId)
+                        } else trip
+                        client.from("trips").upsert(targetTrip)
+                        tripDao.updateSyncStatus(trip.id, SyncStatus.SYNCED)
+                        Log.i("FinanceRepository", "Synced offline trip ${trip.destination} to cloud")
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed syncing pending trip ${trip.id}: ${e.message}")
+                    }
+                }
+
+                val pendingDeleteTrips = tripDao.getPendingDeleteTrips()
+                for (trip in pendingDeleteTrips) {
+                    try {
+                        client.from("trips").delete { filter { eq("id", trip.id) } }
+                        tripDao.deletePermanently(trip.id)
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed deleting remote trip ${trip.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FinanceRepository", "Error syncing pending trips: ${e.message}")
+            }
+
+            // 3. Sync Pending Transactions (Expenses and Incomes added while offline)
+            try {
+                val pendingTxs = transactionDao.getPendingSyncTransactions()
+                for (tx in pendingTxs) {
+                    try {
+                        val targetTx = if (tx.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
+                            tx.copy(userId = currentUserId)
+                        } else tx
+                        client.from("transactions").upsert(targetTx)
+                        transactionDao.updateSyncStatus(tx.id, SyncStatus.SYNCED)
+                        Log.i("FinanceRepository", "Synced offline transaction ${tx.id} (${tx.type} ₹${tx.amount}) to cloud")
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed syncing pending transaction ${tx.id}: ${e.message}")
+                    }
+                }
+
+                val pendingDeleteTxs = transactionDao.getPendingDeleteTransactions()
+                for (tx in pendingDeleteTxs) {
+                    try {
+                        client.from("transactions").delete { filter { eq("id", tx.id) } }
+                        transactionDao.deletePermanently(tx.id)
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed deleting remote transaction ${tx.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FinanceRepository", "Error syncing pending transactions: ${e.message}")
+            }
+
+            // 4. Sync Pending Budgets
+            try {
+                val pendingBudgets = budgetDao.getPendingSyncBudgets()
+                for (b in pendingBudgets) {
+                    try {
+                        val targetBudget = if (b.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
+                            b.copy(userId = currentUserId)
+                        } else b
+                        client.from("budgets").upsert(targetBudget)
+                        budgetDao.updateSyncStatus(b.id, SyncStatus.SYNCED)
+                        Log.i("FinanceRepository", "Synced offline budget ${b.id} to cloud")
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed syncing pending budget ${b.id}: ${e.message}")
+                    }
+                }
+
+                val pendingDeleteBudgets = budgetDao.getPendingDeleteBudgets()
+                for (b in pendingDeleteBudgets) {
+                    try {
+                        client.from("budgets").delete { filter { eq("id", b.id) } }
+                        budgetDao.deletePermanently(b.id)
+                    } catch (e: Exception) {
+                        Log.w("FinanceRepository", "Failed deleting remote budget ${b.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("FinanceRepository", "Error syncing pending budgets: ${e.message}")
+            }
+
+            // 5. Pull any remote updates from Supabase
+            syncFromCloud()
+        } catch (e: Exception) {
+            Log.e("FinanceRepository", "Global sync error: ${e.message}", e)
+        }
+    }
+
+    /**
      * Restore all user data from Supabase cloud into local Room database.
      * Guarantees data is preserved even after uninstall / reinstall on same account.
      */
@@ -212,7 +376,7 @@ class FinanceRepository @Inject constructor(
                 val userIds = getAllUserIdentifiers()
                 if (userIds.isEmpty()) return@withContext
 
-                // 1. Transactions
+                // 1. Transactions (do not overwrite locally pending items)
                 try {
                     val remoteTxs = client.from("transactions").select {
                         filter {
@@ -220,7 +384,11 @@ class FinanceRepository @Inject constructor(
                         }
                     }.decodeList<TransactionEntity>()
                     if (remoteTxs.isNotEmpty()) {
-                        transactionDao.insertAll(remoteTxs)
+                        val pendingIds = transactionDao.getPendingSyncTransactions().map { it.id }.toSet()
+                        val safeRemoteTxs = remoteTxs.filter { !pendingIds.contains(it.id) }
+                        if (safeRemoteTxs.isNotEmpty()) {
+                            transactionDao.insertAll(safeRemoteTxs)
+                        }
                         Log.i("FinanceRepository", "Synced ${remoteTxs.size} transactions from Supabase")
                     }
                 } catch (e: Exception) {
@@ -235,7 +403,11 @@ class FinanceRepository @Inject constructor(
                         }
                     }.decodeList<TripEntity>()
                     if (remoteTrips.isNotEmpty()) {
-                        tripDao.insertAll(remoteTrips)
+                        val pendingTripIds = tripDao.getPendingSyncTrips().map { it.id }.toSet()
+                        val safeTrips = remoteTrips.filter { !pendingTripIds.contains(it.id) }
+                        if (safeTrips.isNotEmpty()) {
+                            tripDao.insertAll(safeTrips)
+                        }
                         Log.i("FinanceRepository", "Synced ${remoteTrips.size} trips from Supabase")
                     }
                 } catch (e: Exception) {
@@ -250,7 +422,11 @@ class FinanceRepository @Inject constructor(
                         }
                     }.decodeList<BudgetEntity>()
                     if (remoteBudgets.isNotEmpty()) {
-                        budgetDao.insertAll(remoteBudgets)
+                        val pendingBudgetIds = budgetDao.getPendingSyncBudgets().map { it.id }.toSet()
+                        val safeBudgets = remoteBudgets.filter { !pendingBudgetIds.contains(it.id) }
+                        if (safeBudgets.isNotEmpty()) {
+                            budgetDao.insertAll(safeBudgets)
+                        }
                         Log.i("FinanceRepository", "Synced ${remoteBudgets.size} budgets from Supabase")
                     }
                 } catch (e: Exception) {
@@ -261,7 +437,11 @@ class FinanceRepository @Inject constructor(
                 try {
                     val remoteCats = client.from("categories").select().decodeList<CategoryEntity>()
                     if (remoteCats.isNotEmpty()) {
-                        categoryDao.insertAll(remoteCats)
+                        val pendingCatIds = categoryDao.getPendingSyncCategories().map { it.id }.toSet()
+                        val safeCats = remoteCats.filter { !pendingCatIds.contains(it.id) }
+                        if (safeCats.isNotEmpty()) {
+                            categoryDao.insertAll(safeCats)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.w("FinanceRepository", "Error fetching remote categories: ${e.message}")

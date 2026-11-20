@@ -402,7 +402,7 @@ fun AuthScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "SHA-1: ED:15:EB:18:2A:53:77:DA:5C:F5:3A:02:E6:5D:97:EA:18:F2:B9:98",
+                                text = "SHA-1: BD:E4:51:8E:2B:FC:62:18:83:AE:33:D4:0D:03:26:B3:C2:BD:46:62",
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }

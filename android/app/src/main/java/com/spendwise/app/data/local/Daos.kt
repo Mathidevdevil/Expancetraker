@@ -26,6 +26,15 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deletePermanently(id: String)
+
+    @Query("SELECT * FROM categories WHERE syncStatus IN ('PENDING_INSERT', 'PENDING_UPDATE')")
+    suspend fun getPendingSyncCategories(): List<CategoryEntity>
+
+    @Query("SELECT * FROM categories WHERE syncStatus = 'PENDING_DELETE'")
+    suspend fun getPendingDeleteCategories(): List<CategoryEntity>
+
+    @Query("UPDATE categories SET syncStatus = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: SyncStatus)
 }
 
 @Dao
@@ -56,6 +65,15 @@ interface TransactionDao {
 
     @Query("DELETE FROM transactions")
     suspend fun clearAllTransactions()
+
+    @Query("SELECT * FROM transactions WHERE syncStatus IN ('PENDING_INSERT', 'PENDING_UPDATE')")
+    suspend fun getPendingSyncTransactions(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE syncStatus = 'PENDING_DELETE'")
+    suspend fun getPendingDeleteTransactions(): List<TransactionEntity>
+
+    @Query("UPDATE transactions SET syncStatus = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: SyncStatus)
 }
 
 @Dao
@@ -80,6 +98,15 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets")
     suspend fun clearAllBudgets()
+
+    @Query("SELECT * FROM budgets WHERE syncStatus IN ('PENDING_INSERT', 'PENDING_UPDATE')")
+    suspend fun getPendingSyncBudgets(): List<BudgetEntity>
+
+    @Query("SELECT * FROM budgets WHERE syncStatus = 'PENDING_DELETE'")
+    suspend fun getPendingDeleteBudgets(): List<BudgetEntity>
+
+    @Query("UPDATE budgets SET syncStatus = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: SyncStatus)
 }
 
 @Dao
@@ -104,4 +131,13 @@ interface TripDao {
 
     @Query("DELETE FROM trips")
     suspend fun clearAllTrips()
+
+    @Query("SELECT * FROM trips WHERE syncStatus IN ('PENDING_INSERT', 'PENDING_UPDATE')")
+    suspend fun getPendingSyncTrips(): List<TripEntity>
+
+    @Query("SELECT * FROM trips WHERE syncStatus = 'PENDING_DELETE'")
+    suspend fun getPendingDeleteTrips(): List<TripEntity>
+
+    @Query("UPDATE trips SET syncStatus = :status WHERE id = :id")
+    suspend fun updateSyncStatus(id: String, status: SyncStatus)
 }

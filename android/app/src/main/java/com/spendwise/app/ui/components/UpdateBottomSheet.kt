@@ -241,25 +241,52 @@ fun UpdateBottomSheet(
                 }
 
                 is UpdateDownloadState.ReadyToInstall -> {
-                    Button(
-                        onClick = onInstall,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981),
-                            contentColor = Color.White
-                        )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Install Update",
-                            fontFamily = SfPro,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
+                        Button(
+                            onClick = onInstall,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981),
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Install Update",
+                                fontFamily = SfPro,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Play Protect Guidance Tip
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isDark) Color(0x1A6366F1) else Color(0x106366F1),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "💡 Note: If Google Play Protect asks \"Harmful app blocked\", simply tap \"Install anyway\" to complete.",
+                                    fontFamily = SfPro,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    color = if (isDark) Color(0xFFC7D2FE) else Color(0xFF4338CA)
+                                )
+                            }
+                        }
                     }
                 }
 
