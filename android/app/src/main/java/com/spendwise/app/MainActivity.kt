@@ -27,7 +27,6 @@ import com.spendwise.app.ui.categories.CategoriesViewModel
 import com.spendwise.app.ui.components.QuickAddBottomSheet
 import com.spendwise.app.ui.components.UpdateBottomSheet
 import com.spendwise.app.ui.components.glass.AuroraBackground
-import com.spendwise.app.ui.components.glass.GlassFloatingAddButton
 import com.spendwise.app.ui.components.glass.LiquidGlassBottomBar
 import com.spendwise.app.ui.components.glass.LiquidTabItem
 import com.spendwise.app.ui.dashboard.DashboardScreen
@@ -211,34 +210,24 @@ fun MainAppScaffold(
                     )
             )
 
-            Row(
+            LiquidGlassBottomBar(
+                tabs = bottomTabs,
+                currentRoute = activeRoute,
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        popUpTo(Screen.Dashboard.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onAddClick = { isQuickAddOpen = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 14.dp, end = 14.dp, bottom = 12.dp)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
                     .navigationBarsPadding(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                LiquidGlassBottomBar(
-                    tabs = bottomTabs,
-                    currentRoute = activeRoute,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(Screen.Dashboard.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    isDark = isDark
-                )
-
-                GlassFloatingAddButton(
-                    onClick = { isQuickAddOpen = true },
-                    isDark = isDark
-                )
-            }
+                isDark = isDark
+            )
         }
 
         // 3. Quick Add Transaction Bottom Sheet
