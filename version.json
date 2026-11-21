@@ -1,7 +1,7 @@
 {
-  "version_code": 6,
-  "version_name": "1.0.5",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.5.apk",
-  "changelog": "• Fixed Email Sign-Up & Sign-In: Instant login support & clear Email Confirmation verification guidance\n• Auto-switch to Login upon successful account creation with pre-filled email\n• Offline & Demo fallback access",
+  "version_code": 7,
+  "version_name": "1.0.6",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.6.apk",
+  "changelog": "• Apple Liquid Glass notched bottom bar & champagne gold (+) action button\n• Production release signing & OTA compatibility\n• 140dp bottom content clearance for all scrolling screens\n• Realtime Supabase offline sync & stability enhancements",
   "is_mandatory": false
 }
