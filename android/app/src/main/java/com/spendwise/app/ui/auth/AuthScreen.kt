@@ -71,6 +71,9 @@ class AuthViewModel @Inject constructor(
         private set
     var successMessage by mutableStateOf<String?>(null)
         private set
+    var authMode by mutableStateOf(AuthMode.SIGN_IN)
+    var showEmailConfirmationHelp by mutableStateOf(false)
+    var pendingConfirmationEmail by mutableStateOf("")
 
     var showGoogleSetupDialog by mutableStateOf(false)
 
@@ -83,6 +86,7 @@ class AuthViewModel @Inject constructor(
     fun resetMessages() {
         errorMessage = null
         successMessage = null
+        showEmailConfirmationHelp = false
     }
 
     private fun updateProfileFromEmail(email: String, explicitName: String = "") {
@@ -118,28 +122,78 @@ class AuthViewModel @Inject constructor(
         isLoading = true
         errorMessage = null
         successMessage = null
+        showEmailConfirmationHelp = false
 
         viewModelScope.launch {
             try {
                 if (supabaseProvider.isConfigured) {
                     val client = supabaseProvider.getClient()
                     if (isSignUp) {
-                        client.auth.signUpWith(Email) {
-                            this.email = cleanEmail
-                            this.password = pass
+                        try {
+                            client.auth.signUpWith(Email) {
+                                this.email = cleanEmail
+                                this.password = pass
+                            }
+                        } catch (signupEx: Exception) {
+                            val msg = signupEx.message ?: ""
+                            if (msg.contains("already registered", ignoreCase = true) || 
+                                msg.contains("User already registered", ignoreCase = true) ||
+                                msg.contains("already exists", ignoreCase = true)) {
+                                errorMessage = "An account with this email already exists. Please Sign In below."
+                                authMode = AuthMode.SIGN_IN
+                                return@launch
+                            } else {
+                                throw signupEx
+                            }
+                        }
+
+                        // Check if session was granted immediately (when Confirm Email is OFF in Supabase)
+                        val session = client.auth.currentSessionOrNull()
+                        val authUser = client.auth.currentUserOrNull()
+
+                        if (session != null && authUser != null) {
+                            // Instant login without confirmation requirement
+                            repository.authUserId = authUser.id
+                            repository.syncFromCloud()
+                            val prevEmail = repository.userProfile.value.email
+                            if (prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
+                                repository.clearAllUserData()
+                            }
+                            updateProfileFromEmail(cleanEmail, fullName)
+                            repository.isLoggedIn = true
+                            onComplete()
+                            return@launch
+                        } else {
+                            // Supabase has 'Confirm email' enabled
+                            pendingConfirmationEmail = cleanEmail
+                            showEmailConfirmationHelp = true
+                            successMessage = "Account created! Please check your email inbox ($cleanEmail) and click the confirmation link to activate your account, then sign in."
+                            authMode = AuthMode.SIGN_IN
+                            return@launch
                         }
                     } else {
+                        // Sign In with email & password
                         client.auth.signInWith(Email) {
                             this.email = cleanEmail
                             this.password = pass
                         }
+                        val authUser = client.auth.currentUserOrNull()
+                        if (authUser != null) {
+                            repository.authUserId = authUser.id
+                        }
+                        repository.syncFromCloud()
+                        val prevEmail = repository.userProfile.value.email
+                        if (prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
+                            repository.clearAllUserData()
+                        }
+                        updateProfileFromEmail(cleanEmail, fullName)
+                        repository.isLoggedIn = true
+                        onComplete()
+                        return@launch
                     }
-                    val authUser = client.auth.currentUserOrNull()
-                    if (authUser != null) {
-                        repository.authUserId = authUser.id
-                    }
-                    repository.syncFromCloud()
                 }
+
+                // Supabase not configured fallback
                 val prevEmail = repository.userProfile.value.email
                 if (isSignUp && prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
                     repository.clearAllUserData()
@@ -149,17 +203,20 @@ class AuthViewModel @Inject constructor(
                 onComplete()
             } catch (e: Exception) {
                 val rawMsg = e.message ?: ""
+                android.util.Log.e("AuthScreen", "Auth error: $rawMsg", e)
                 if (rawMsg.contains("invalid", ignoreCase = true) || rawMsg.contains("credentials", ignoreCase = true)) {
-                    errorMessage = "Incorrect email or password."
+                    errorMessage = "Incorrect email or password. Please verify and try again."
+                } else if (rawMsg.contains("email not confirmed", ignoreCase = true) || rawMsg.contains("email_not_confirmed", ignoreCase = true)) {
+                    pendingConfirmationEmail = cleanEmail
+                    showEmailConfirmationHelp = true
+                    errorMessage = "Email not confirmed! Please check your inbox ($cleanEmail) and tap the confirmation link, or disable 'Confirm email' in Supabase dashboard."
+                } else if (rawMsg.contains("already registered", ignoreCase = true) || rawMsg.contains("already exists", ignoreCase = true)) {
+                    errorMessage = "This email is already registered. Please Sign In."
+                    authMode = AuthMode.SIGN_IN
+                } else if (rawMsg.contains("rate limit", ignoreCase = true)) {
+                    errorMessage = "Too many attempts. Please wait a minute and try again."
                 } else {
-                    // Offline fallback
-                    val prevEmail = repository.userProfile.value.email
-                    if (isSignUp && prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
-                        repository.clearAllUserData()
-                    }
-                    updateProfileFromEmail(cleanEmail, fullName)
-                    repository.isLoggedIn = true
-                    onComplete()
+                    errorMessage = rawMsg.ifBlank { "Authentication failed. Please check your credentials and internet connection." }
                 }
             } finally {
                 isLoading = false
@@ -298,7 +355,7 @@ fun AuthScreen(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
-    var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
+    val authMode = viewModel.authMode
 
     // Form inputs
     var name by remember { mutableStateOf("") }
@@ -692,6 +749,64 @@ fun AuthScreen(
                         )
                     }
 
+                    // Email Confirmation Guidance Banner
+                    if (viewModel.showEmailConfirmationHelp) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isDark) Color(0x203B82F6) else Color(0x103B82F6),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 14.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = Color(0xFF3B82F6),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Email Confirmation Required",
+                                        fontFamily = SfPro,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Supabase sent an activation email to your address. Please open your email inbox and tap the link to activate your account, then sign in.\n\n💡 Admin Tip: To skip email verification, turn off 'Confirm email' in Supabase Dashboard -> Authentication -> Providers -> Email.",
+                                    fontFamily = SfPro,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = { viewModel.continueAsDemo(onAuthSuccess) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f),
+                                        contentColor = if (isDark) Color.White else Color(0xFF1E40AF)
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(38.dp)
+                                ) {
+                                    Text(
+                                        text = "Continue in Offline / Demo Mode",
+                                        fontFamily = SfPro,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Full-width Primary Button: 52dp tall, Champagne Gold with Navy bold text
                     Button(
                         onClick = { handleSubmit() },
@@ -810,7 +925,7 @@ fun AuthScreen(
                                 color = BrandGold,
                                 modifier = Modifier
                                     .clickable {
-                                        authMode = AuthMode.FORGOT_PASSWORD
+                                        viewModel.authMode = AuthMode.FORGOT_PASSWORD
                                         viewModel.resetMessages()
                                     }
                                     .padding(vertical = 4.dp)
@@ -838,7 +953,7 @@ fun AuthScreen(
                                     color = BrandGold,
                                     modifier = Modifier
                                         .clickable {
-                                            authMode = AuthMode.SIGN_UP
+                                            viewModel.authMode = AuthMode.SIGN_UP
                                             viewModel.resetMessages()
                                         }
                                         .padding(vertical = 4.dp)
@@ -865,7 +980,7 @@ fun AuthScreen(
                                     color = BrandGold,
                                     modifier = Modifier
                                         .clickable {
-                                            authMode = AuthMode.SIGN_IN
+                                            viewModel.authMode = AuthMode.SIGN_IN
                                             viewModel.resetMessages()
                                         }
                                         .padding(vertical = 4.dp)
@@ -892,7 +1007,7 @@ fun AuthScreen(
                                     color = BrandGold,
                                     modifier = Modifier
                                         .clickable {
-                                            authMode = AuthMode.SIGN_IN
+                                            viewModel.authMode = AuthMode.SIGN_IN
                                             viewModel.resetMessages()
                                         }
                                         .padding(vertical = 4.dp)

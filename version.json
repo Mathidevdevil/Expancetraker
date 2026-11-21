@@ -1,7 +1,7 @@
 {
-  "version_code": 5,
-  "version_name": "1.0.4",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.4.apk",
-  "changelog": "• Automatic Offline Sync: Offline expenses & income sync instantly when device reconnects online\n• Google Sign-In & Release SHA-1 support\n• Google Play Protect installation tips & stability improvements",
+  "version_code": 6,
+  "version_name": "1.0.5",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.5.apk",
+  "changelog": "• Fixed Email Sign-Up & Sign-In: Instant login support & clear Email Confirmation verification guidance\n• Auto-switch to Login upon successful account creation with pre-filled email\n• Offline & Demo fallback access",
   "is_mandatory": false
 }
