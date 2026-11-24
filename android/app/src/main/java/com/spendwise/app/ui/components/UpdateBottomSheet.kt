@@ -29,9 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.spendwise.app.BuildConfig
 import com.spendwise.app.data.remote.AppUpdateInfo
 import com.spendwise.app.data.remote.UpdateDownloadState
-import com.spendwise.app.ui.theme.AppleIndigo
-import com.spendwise.app.ui.theme.AppleIndigoLight
-import com.spendwise.app.ui.theme.SfPro
+import com.spendwise.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +53,7 @@ fun UpdateBottomSheet(
         },
         sheetState = modalBottomSheetState,
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-        containerColor = if (isDark) Color(0xFF131520) else Color.White,
+        containerColor = if (isDark) Plum900 else Cream50,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -63,7 +61,7 @@ fun UpdateBottomSheet(
                     .width(42.dp)
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(if (isDark) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.2f))
+                    .background(if (isDark) Gold500.copy(alpha = 0.3f) else Taupe500.copy(alpha = 0.3f))
             )
         }
     ) {
@@ -82,8 +80,8 @@ fun UpdateBottomSheet(
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Color(0xFF6366F1),
-                                Color(0xFFE7B94F)
+                                Plum700,
+                                Gold500
                             )
                         )
                     ),
@@ -105,7 +103,7 @@ fun UpdateBottomSheet(
                 fontFamily = SfPro,
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp,
-                color = if (isDark) Color.White else Color(0xFF0F172A)
+                color = if (isDark) Cream50 else Plum900
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -115,7 +113,7 @@ fun UpdateBottomSheet(
                 fontFamily = SfPro,
                 fontWeight = FontWeight.Normal,
                 fontSize = 14.sp,
-                color = if (isDark) Color.White.copy(alpha = 0.6f) else Color(0xFF64748B)
+                color = if (isDark) Taupe300 else Taupe700
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -124,10 +122,10 @@ fun UpdateBottomSheet(
             if (!updateInfo.changelog.isNullOrBlank()) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = if (isDark) Color(0xFF1B1E2E) else Color(0xFFF1F5F9),
+                    color = if (isDark) Plum950 else Cream100,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
+                        if (isDark) Gold500.copy(alpha = 0.25f) else Taupe300
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -143,7 +141,7 @@ fun UpdateBottomSheet(
                             fontFamily = SfPro,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            color = if (isDark) AppleIndigoLight else AppleIndigo
+                            color = if (isDark) Gold500 else Plum700
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
@@ -152,7 +150,7 @@ fun UpdateBottomSheet(
                             fontWeight = FontWeight.Normal,
                             fontSize = 13.sp,
                             lineHeight = 19.sp,
-                            color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                            color = if (isDark) Cream50 else Plum900
                         )
                     }
                 }
@@ -169,8 +167,8 @@ fun UpdateBottomSheet(
                             .height(54.dp),
                         shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppleIndigo,
-                            contentColor = Color.White
+                            containerColor = if (isDark) Gold500 else Plum700,
+                            contentColor = if (isDark) Plum900 else Cream50
                         )
                     ) {
                         Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -196,7 +194,7 @@ fun UpdateBottomSheet(
                                 fontFamily = SfPro,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp,
-                                color = if (isDark) Color.White.copy(alpha = 0.5f) else Color(0xFF64748B)
+                                color = if (isDark) Taupe300 else Taupe700
                             )
                         }
                     }
@@ -217,14 +215,14 @@ fun UpdateBottomSheet(
                                 fontFamily = SfPro,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp,
-                                color = if (isDark) Color.White.copy(alpha = 0.8f) else Color(0xFF334155)
+                                color = if (isDark) Cream50 else Plum900
                             )
                             Text(
                                 text = "$percent%",
                                 fontFamily = SfPro,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = if (isDark) AppleIndigoLight else AppleIndigo
+                                color = Gold500
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -234,8 +232,8 @@ fun UpdateBottomSheet(
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(4.dp)),
-                            color = AppleIndigo,
-                            trackColor = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.08f)
+                            color = Gold500,
+                            trackColor = if (isDark) Taupe900 else Taupe100
                         )
                     }
                 }
@@ -252,8 +250,8 @@ fun UpdateBottomSheet(
                                 .height(54.dp),
                             shape = RoundedCornerShape(18.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981),
-                                contentColor = Color.White
+                                containerColor = if (isDark) IncomeDark else IncomeLight,
+                                contentColor = if (isDark) Plum950 else Color.White
                             )
                         ) {
                             Icon(Icons.Default.InstallMobile, contentDescription = null, modifier = Modifier.size(20.dp))

@@ -549,7 +549,7 @@ fun AuthScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 24.sp
                         ),
-                        color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
+                        color = if (isDark) Cream50 else Plum900,
                         textAlign = TextAlign.Center
                     )
 
@@ -714,9 +714,9 @@ fun AuthScreen(
                                 checked = showPassword,
                                 onCheckedChange = { showPassword = it },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = BrandGold,
-                                    checkmarkColor = BrandNavy,
-                                    uncheckedColor = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                                    checkedColor = Gold500,
+                                    checkmarkColor = Plum900,
+                                    uncheckedColor = if (isDark) Taupe500 else Taupe300
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -726,7 +726,7 @@ fun AuthScreen(
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569)
+                                color = if (isDark) Taupe300 else Taupe700
                             )
                         }
                     }
@@ -854,7 +854,7 @@ fun AuthScreen(
                         ) {
                             HorizontalDivider(
                                 modifier = Modifier.weight(1f),
-                                color = if (isDark) Color(0xFF232845) else Color(0xFFE2E8F0)
+                                color = if (isDark) Taupe900 else Taupe100
                             )
                             Text(
                                 text = "  OR  ",
@@ -866,17 +866,17 @@ fun AuthScreen(
                             )
                             HorizontalDivider(
                                 modifier = Modifier.weight(1f),
-                                color = if (isDark) Color(0xFF232845) else Color(0xFFE2E8F0)
+                                color = if (isDark) Taupe900 else Taupe100
                             )
                         }
 
                         // Full-width "Continue with Google" Button
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isDark) Color(0xFF181C33) else Color(0xFFFFFFFF),
+                            color = if (isDark) Plum900.copy(alpha = 0.6f) else Color.White,
                             border = androidx.compose.foundation.BorderStroke(
                                 1.dp,
-                                if (isDark) Color(0xFF2A3152) else Color(0xFFCBD5E1)
+                                if (isDark) Gold500.copy(alpha = 0.35f) else Taupe300
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -904,7 +904,7 @@ fun AuthScreen(
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 15.sp
                                     ),
-                                    color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F)
+                                    color = if (isDark) Cream50 else Plum900
                                 )
                             }
                         }
@@ -1065,7 +1065,7 @@ private fun SpendwiseLabeledField(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             ),
-            color = if (isDark) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+            color = if (isDark) Cream50 else Plum900
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -1077,7 +1077,7 @@ private fun SpendwiseLabeledField(
                 Text(
                     text = placeholder,
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                    color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8)
+                    color = if (isDark) Taupe300 else Taupe700
                 )
             },
             visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
@@ -1091,8 +1091,8 @@ private fun SpendwiseLabeledField(
                 unfocusedContainerColor = if (isDark) BrandInputBgDark else BrandInputBgLight,
                 focusedBorderColor = BrandGold,
                 unfocusedBorderColor = if (isDark) BrandInputBorderDark else BrandInputBorderLight,
-                focusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
-                unfocusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0D0F1F),
+                focusedTextColor = if (isDark) Cream50 else Plum900,
+                unfocusedTextColor = if (isDark) Cream50 else Plum900,
                 cursorColor = BrandGold,
                 errorBorderColor = ExpenseRose
             ),

@@ -1,9 +1,5 @@
 package com.spendwise.app.ui.components.glass
 
-import android.graphics.RenderEffect
-import android.graphics.Shader
-import android.os.Build
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -17,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,14 +20,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spendwise.app.ui.theme.*
@@ -44,220 +44,285 @@ data class LiquidTabItem(
 )
 
 /**
- * Apple Liquid Glass Floating Bottom Navigation Bar.
- * - Floating pill: inset 16dp from sides, 12dp above bottom gesture line, 68dp high.
- * - Frosted glass with 1dp specular top highlight and soft floating shadow.
- * - 4 streamlined tabs (Overview, Activity, Budgets, Travel).
- * - Sliding springy glass lens capsule (stiffness ~300, damping ~0.7) with 1.08x magnification.
- * - Scroll-aware contraction when scrolling down.
+ * Curved Notched Bar Shape.
+ * Produces a smooth concave notch at the top center for the raised add action button.
+ */
+class NotchedBarShape(
+    private val notchRadius: Dp = 30.dp,
+    private val cornerRadius: Dp = 26.dp,
+    private val notchMargin: Dp = 6.dp
+) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path().apply {
+            val r = with(density) { cornerRadius.toPx() }
+            val nr = with(density) { (notchRadius + notchMargin).toPx() }
+            val cx = size.width / 2f
+            val h = size.height
+            val w = size.width
+
+            // Top-left corner
+            moveTo(0f, r)
+            quadraticBezierTo(0f, 0f, r, 0f)
+
+            // Line to left side of notch
+            val notchLeft = cx - nr
+            lineTo(notchLeft - nr * 0.15f, 0f)
+
+            // Concave notch cutout
+            cubicTo(
+                notchLeft + nr * 0.2f, 0f,
+                cx - nr * 0.6f, nr * 0.8f,
+                cx, nr * 0.8f
+            )
+            val notchRight = cx + nr
+            cubicTo(
+                cx + nr * 0.6f, nr * 0.8f,
+                notchRight - nr * 0.2f, 0f,
+                notchRight + nr * 0.15f, 0f
+            )
+
+            // Line to top-right corner
+            lineTo(w - r, 0f)
+            quadraticBezierTo(w, 0f, w, r)
+
+            // Right edge to bottom-right
+            lineTo(w, h - r)
+            quadraticBezierTo(w, h, w - r, h)
+
+            // Bottom edge to bottom-left
+            lineTo(r, h)
+            quadraticBezierTo(0f, h, 0f, h - r)
+
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
+
+/**
+ * Apple-style Liquid Glass Bottom Bar with a top-center curved notch
+ * and a raised circular gold action button.
  */
 @Composable
 fun LiquidGlassBottomBar(
     tabs: List<LiquidTabItem>,
     currentRoute: String?,
     onNavigate: (String) -> Unit,
+    onAddClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isDark: Boolean = isSystemInDarkTheme(),
-    isCollapsed: Boolean = false
+    isDark: Boolean = isSystemInDarkTheme()
 ) {
     val haptic = LocalHapticFeedback.current
+    val barShape = remember { NotchedBarShape(notchRadius = 30.dp, cornerRadius = 28.dp) }
 
-    val barHeight by animateDpAsState(
-        targetValue = if (isCollapsed) 54.dp else 68.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
-        label = "BarHeight"
-    )
-
-    val barHorizontalPadding by animateDpAsState(
-        targetValue = if (isCollapsed) 48.dp else 16.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
-        label = "BarHorizontalPadding"
-    )
-
-    val pillShape = RoundedCornerShape(34.dp)
-    // High-opacity frosted glass base (95% opaque): completely prevents underlying scrolling cards/text from bleeding through
-    val baseColor = if (isDark) Color(0xF2121526) else Color(0xF7FFFFFF)
-    // Luminescent specular sheen across the pill surface
+    val baseFill = if (isDark) Plum900.copy(alpha = 0.88f) else Cream100.copy(alpha = 0.92f)
     val sheenBrush = Brush.verticalGradient(
         colors = if (isDark) {
-            listOf(Color(0x2EFFFFFF), Color(0x0AFFFFFF))
+            listOf(Gold500.copy(alpha = 0.25f), Color(0x05FFFFFF))
         } else {
-            listOf(Color(0x80FFFFFF), Color(0x1AFFFFFF))
+            listOf(Gold500.copy(alpha = 0.30f), Color(0x10FFFFFF))
         }
     )
     val borderBrush = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
 
-    val shadowSpotColor = if (isDark) Color(0x59000000) else Color(0x1F0F172A)
-    val shadowAmbientColor = if (isDark) Color(0x33000000) else Color(0x0F0F172A)
+    val shadowSpotColor = if (isDark) Plum950.copy(alpha = 0.8f) else Taupe900.copy(alpha = 0.25f)
+    val shadowAmbientColor = if (isDark) Color(0x33000000) else Taupe700.copy(alpha = 0.15f)
 
-    val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val leftTabs = if (tabs.size >= 2) tabs.subList(0, 2) else tabs
+    val rightTabs = if (tabs.size > 2) tabs.subList(2, tabs.size) else emptyList()
 
     Box(
         modifier = modifier
-            .height(barHeight)
-            .shadow(
-                elevation = 20.dp,
-                shape = pillShape,
-                spotColor = shadowSpotColor,
-                ambientColor = shadowAmbientColor,
-                clip = false
-            )
-            .clip(pillShape)
-            .background(baseColor, pillShape)
-            .background(sheenBrush, pillShape)
-            .border(width = 1.dp, brush = borderBrush, shape = pillShape)
-            .padding(horizontal = 6.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .height(90.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        // Tab Row with individual glass lens highlights
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = currentRoute == tab.route
-
-                val iconScale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.08f else 1.0f,
-                    animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
-                    label = "TabIconScale"
+        // 1. Notched Glass Body
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(68.dp)
+                .shadow(
+                    elevation = 20.dp,
+                    shape = barShape,
+                    spotColor = shadowSpotColor,
+                    ambientColor = shadowAmbientColor,
+                    clip = false
                 )
-
-                val lensShape = RoundedCornerShape(26.dp)
-                val lensFillBrush = if (isDark) {
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0x3D818CF8),
-                            Color(0x1F6366F1)
-                        )
-                    )
-                } else {
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0x2E4F46E5),
-                            Color(0x144F46E5)
-                        )
-                    )
-                }
-                val lensBorder = if (isDark) {
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0x80A5B4FC),
-                            Color(0x26818CF8)
-                        )
-                    )
-                } else {
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0x664F46E5),
-                            Color(0x1F4F46E5)
-                        )
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(lensShape)
-                        .then(
-                            if (isSelected) {
-                                Modifier
-                                    .shadow(
-                                        elevation = 6.dp,
-                                        shape = lensShape,
-                                        spotColor = if (isDark) Color(0x33000000) else Color(0x1A0F172A),
-                                        clip = false
-                                    )
-                                    .background(lensFillBrush, lensShape)
-                                    .border(width = 1.dp, brush = lensBorder, shape = lensShape)
-                            } else {
-                                Modifier
-                            }
-                        )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
+                .clip(barShape)
+                .background(baseFill, barShape)
+                .background(sheenBrush, barShape)
+                .border(width = 1.dp, brush = borderBrush, shape = barShape)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left Tabs (Overview, Activity)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    leftTabs.forEach { tab ->
+                        val isSelected = currentRoute == tab.route
+                        BottomBarTabItem(
+                            tab = tab,
+                            isSelected = isSelected,
+                            isDark = isDark,
                             onClick = {
                                 if (currentRoute != tab.route) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onNavigate(tab.route)
                                 }
                             }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.scale(iconScale)
-                    ) {
-                        val activeColor = if (isDark) Color.White else AppleIndigo
-                        val inactiveColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.title,
-                            tint = if (isSelected) activeColor else inactiveColor,
-                            modifier = Modifier.size(if (isCollapsed) 20.dp else 22.dp)
                         )
+                    }
+                }
 
-                        if (!isCollapsed) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = tab.title,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                color = if (isSelected) activeColor else inactiveColor,
-                                fontSize = 10.sp,
-                                maxLines = 1
-                            )
-                        }
+                // Center Notch Void for the Raised Button (width 64dp)
+                Spacer(modifier = Modifier.width(64.dp))
+
+                // Right Tabs (Budgets, Travel)
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    rightTabs.forEach { tab ->
+                        val isSelected = currentRoute == tab.route
+                        BottomBarTabItem(
+                            tab = tab,
+                            isSelected = isSelected,
+                            isDark = isDark,
+                            onClick = {
+                                if (currentRoute != tab.route) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onNavigate(tab.route)
+                                }
+                            }
+                        )
                     }
                 }
             }
+        }
+
+        // 2. Raised Round Gold FAB nestled inside the Notch
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-6).dp)
+        ) {
+            RaisedGoldAddButton(
+                onClick = onAddClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomBarTabItem(
+    tab: LiquidTabItem,
+    isSelected: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.08f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
+        label = "TabIconScale"
+    )
+
+    val activeColor = if (isDark) Gold500 else Plum700
+    val inactiveColor = if (isDark) Taupe300 else Taupe700
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 4.dp, horizontal = 6.dp)
+            .scale(iconScale)
+    ) {
+        Icon(
+            imageVector = tab.icon,
+            contentDescription = tab.title,
+            tint = if (isSelected) activeColor else inactiveColor,
+            modifier = Modifier.size(22.dp)
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = tab.title,
+            fontFamily = SfPro,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) activeColor else inactiveColor,
+            maxLines = 1
+        )
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        // Short Gold Underline Indicator for Active Tab
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .width(16.dp)
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(Gold500)
+            )
+        } else {
+            Spacer(modifier = Modifier.height(2.dp))
         }
     }
 }
 
 /**
- * Apple Liquid Glass Floating Action Button.
- * 54dp circular glass button with a luminous gradient and white '+' icon.
- * Floats beside the bottom bar without obstructing list content.
+ * Raised Circular Gold Button.
+ * 54dp diameter, gold gradient with navy icon, sits elevated in the notch.
  */
 @Composable
-fun GlassFloatingAddButton(
+fun RaisedGoldAddButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isDark: Boolean = isSystemInDarkTheme()
+    modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val shape = CircleShape
 
-    val gradientBrush = Brush.verticalGradient(
+    val goldGradient = Brush.verticalGradient(
         colors = listOf(
-            AppleIndigoLight,
-            AppleIndigo
+            Gold300,
+            Gold500,
+            Gold700
         )
     )
 
     Box(
         modifier = modifier
-            .size(52.dp)
+            .size(54.dp)
             .shadow(
-                elevation = 12.dp,
+                elevation = 14.dp,
                 shape = shape,
-                spotColor = AppleIndigo.copy(alpha = 0.45f),
-                ambientColor = AppleIndigo.copy(alpha = 0.20f),
+                spotColor = Gold500.copy(alpha = 0.55f),
+                ambientColor = Gold500.copy(alpha = 0.25f),
                 clip = false
             )
             .clip(shape)
-            .background(gradientBrush, shape)
+            .background(goldGradient, shape)
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     listOf(
-                        Color(0xB3FFFFFF),
-                        Color(0x26FFFFFF)
+                        Color(0xE6FFFFFF),
+                        Color(0x33FFFFFF)
                     )
                 ),
                 shape = shape
@@ -271,8 +336,8 @@ fun GlassFloatingAddButton(
         Icon(
             imageVector = Icons.Default.Add,
             contentDescription = "Quick Add Transaction",
-            tint = Color.White,
-            modifier = Modifier.size(24.dp)
+            tint = Plum900,
+            modifier = Modifier.size(26.dp)
         )
     }
 }

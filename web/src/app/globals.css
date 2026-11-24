@@ -4,79 +4,80 @@
 
 @layer base {
   :root {
-    --background: 224 25% 98%; /* #F8F9FC */
-    --foreground: 224 71% 8%; /* #0F172A */
+    /* Royal Plum + Champagne Taupe + Gold Trim: Light Theme */
+    --background: 36 55% 89%; /* cream-100 #F3E6D3 */
+    --foreground: 336 47% 11%; /* plum-900 #2A0F1A */
     
-    --card: 0 0% 100%; /* #FFFFFF */
-    --card-foreground: 224 71% 8%;
+    --card: 39 65% 95% / 0.65; /* cream glass */
+    --card-foreground: 336 47% 11%;
     
-    --surface-elevated: 225 20% 96%; /* #F1F3F9 */
-    --surface-input: 225 18% 92%; /* #E4E7F2 */
+    --surface-elevated: 36 49% 83%; /* cream-200 #E9D8BF */
+    --surface-input: 39 65% 95%; /* cream-50 */
     
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 8%;
+    --popover: 39 65% 95%;
+    --popover-foreground: 336 47% 11%;
     
-    --primary: 243 75% 59%; /* Indigo #4F46E5 */
-    --primary-foreground: 210 40% 98%;
+    --primary: 341 55% 23%; /* plum-700 #5A1A2E */
+    --primary-foreground: 39 65% 95%; /* cream-50 #FBF5EA */
     
-    --secondary: 225 20% 96%;
-    --secondary-foreground: 224 71% 15%;
+    --secondary: 36 49% 83%; /* cream-200 */
+    --secondary-foreground: 336 47% 11%;
     
-    --muted: 225 20% 96%;
-    --muted-foreground: 220 9% 46%; /* #64748B */
+    --muted: 36 49% 83%;
+    --muted-foreground: 31 13% 37%; /* taupe-700 #6B5F52 */
     
-    --accent: 225 20% 96%;
-    --accent-foreground: 224 71% 8%;
+    --accent: 40 64% 75%; /* gold-300 #E8CC94 */
+    --accent-foreground: 41 72% 28%; /* gold-text-on-light #7A5A14 */
     
-    --destructive: 347 87% 55%; /* #E11D48 */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 5 61% 45%; /* expense-light #B8372C */
+    --destructive-foreground: 39 65% 95%;
     
-    --income: 158 84% 36%; /* #059669 */
-    --warning: 38 92% 50%; /* #D97706 */
-    --travel: 189 94% 43%; /* #0284C7 */
+    --income: 155 64% 33%; /* income-light #1E8A5E */
+    --warning: 31 85% 39%; /* warning-light #B7650F */
+    --travel: 41 72% 28%; /* gold-text-on-light */
     
-    --border: 220 13% 90%; /* rgba(15, 23, 42, 0.08) */
-    --input: 220 13% 90%;
-    --ring: 243 75% 59%;
+    --border: 40 64% 75% / 0.45; /* gold-300 border */
+    --input: 37 18% 66% / 0.50; /* taupe-300 */
+    --ring: 41 72% 28%; /* gold-text-on-light */
     --radius: 1.25rem; /* 20px */
   }
 
   .dark {
-    /* 2026 Calm Premium Dark (Near-Black #090A0F) */
-    --background: 230 28% 4.5%; /* #090A0F */
-    --foreground: 210 40% 98%; /* #F8FAFC */
+    /* Royal Plum + Champagne Taupe + Gold Trim: Dark Theme (Default) */
+    --background: 333 53% 7%; /* plum-950 #1A0810 */
+    --foreground: 39 65% 95%; /* cream-50 #FBF5EA */
     
-    --card: 230 24% 9%; /* #11131C */
-    --card-foreground: 210 40% 98%;
+    --card: 336 47% 11% / 0.72; /* plum-900 glass with cream tint */
+    --card-foreground: 39 65% 95%;
     
-    --surface-elevated: 230 22% 12%; /* #181B26 */
-    --surface-input: 230 24% 17%; /* #222638 */
+    --surface-elevated: 334 51% 16%; /* plum-800 #3E1426 */
+    --surface-input: 336 47% 11% / 0.85; /* plum-900 */
     
-    --popover: 230 24% 9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 336 47% 11%;
+    --popover-foreground: 39 65% 95%;
     
-    --primary: 239 84% 67%; /* Indigo-Violet #6366F1 / #818CF8 */
-    --primary-foreground: 210 40% 98%;
+    --primary: 39 56% 62%; /* gold-500 #D4AF6A */
+    --primary-foreground: 336 47% 11%; /* plum-900 #2A0F1A */
     
-    --secondary: 230 22% 12%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 334 51% 16%; /* plum-800 */
+    --secondary-foreground: 39 65% 95%;
     
-    --muted: 230 22% 12%;
-    --muted-foreground: 217 19% 65%; /* #94A3B8 */
+    --muted: 334 51% 16%;
+    --muted-foreground: 37 18% 66%; /* taupe-300 #B9AD9A */
     
-    --accent: 230 22% 12%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 39 56% 62%; /* gold-500 */
+    --accent-foreground: 336 47% 11%;
     
-    --destructive: 347 87% 60%; /* #F43F5E */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 8 80% 71%; /* expense-dark #F1887A */
+    --destructive-foreground: 336 47% 11%;
     
-    --income: 160 84% 39%; /* #10B981 */
-    --warning: 38 92% 50%; /* #F59E0B */
-    --travel: 189 94% 43%; /* #06B6D4 */
+    --income: 150 49% 66%; /* income-dark #7FD1A8 */
+    --warning: 30 85% 65%; /* warning-dark #F2A65A */
+    --travel: 39 56% 62%; /* gold-500 */
     
-    --border: 230 20% 15%; /* subtle hairline border */
-    --input: 230 20% 15%;
-    --ring: 239 84% 67%;
+    --border: 39 56% 62% / 0.30; /* gold-500 at 30% */
+    --input: 33 11% 50% / 0.50; /* taupe-500 */
+    --ring: 39 56% 62%; /* gold-500 */
   }
 }
 
@@ -90,11 +91,12 @@
   }
 }
 
-/* 2026 Fintech Card Utilities */
+/* Royal Plum + Champagne Taupe + Gold Trim Glass Utilities */
 .fintech-card {
   background-color: hsl(var(--card));
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid hsl(var(--border));
   border-radius: 1.5rem; /* 24px */
+  box-shadow: 0 10px 25px -5px rgba(26, 8, 16, 0.4);
 }
 
 .fintech-card-hover {
@@ -103,17 +105,29 @@
 
 .fintech-card-hover:hover {
   transform: translateY(-2px);
-  border-color: hsl(var(--border));
-  box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.35);
+  border-color: hsl(var(--primary));
+  box-shadow: 0 16px 32px -12px rgba(212, 175, 106, 0.25);
 }
 
 .fintech-hero-card {
   background: radial-gradient(120% 120% at 50% 0%, hsl(var(--surface-elevated)) 0%, hsl(var(--card)) 100%);
-  border: 1px solid hsl(var(--border) / 0.8);
+  border: 1px solid hsl(var(--border));
   border-radius: 1.75rem; /* 28px */
+  position: relative;
+  overflow: hidden;
 }
 
-/* Fintech Micro-animations */
+/* Velvet noise texture & S-curve watermark for hero cards */
+.fintech-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image: radial-gradient(#FBF5EA 1px, transparent 0);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
 @keyframes float-subtle {
   0%, 100% {
     transform: translateY(0px);
@@ -123,39 +137,6 @@
   }
 }
 
-@keyframes shake-inline {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-4px); }
-  40%, 80% { transform: translateX(4px); }
-}
-
-.animate-float {
-  animation: float-subtle 4.5s ease-in-out infinite;
-}
-
-.animate-shake {
-  animation: shake-inline 0.35s ease-in-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-float,
-  .animate-shake {
-    animation: none !important;
-  }
-}
-
-/* Scrollbar refinement */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.2);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.4);
+.animate-float-subtle {
+  animation: float-subtle 6s ease-in-out infinite;
 }

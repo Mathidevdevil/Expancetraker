@@ -32,14 +32,16 @@ import androidx.compose.ui.unit.dp
 import com.spendwise.app.ui.theme.*
 
 /**
- * Apple Liquid Glass Primary Gradient Button.
- * Used for main actions (Create Account, Add Transaction, Verify Code).
+ * Royal Plum + Champagne Taupe + Gold Trim Primary Button.
+ * Dark theme: Gold-500 fill with Plum-900 bold text.
+ * Light theme: Plum-700 fill with Cream-50 bold text.
  */
 @Composable
 fun GlassGradientButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isDark: Boolean = isSystemInDarkTheme(),
     isLoading: Boolean = false,
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(18.dp),
@@ -51,13 +53,41 @@ fun GlassGradientButton(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(targetValue = if (isPressed) 0.97f else 1f, label = "ButtonPressScale")
 
-    val gradientBrush = Brush.horizontalGradient(
-        colors = listOf(
-            AppleIndigo,
-            Color(0xFF6C5CE7),
-            Color(0xFF7D5FFF)
+    val gradientBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Gold300,
+                Gold500,
+                Gold700
+            )
         )
-    )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Plum600,
+                Plum700,
+                Plum800
+            )
+        )
+    }
+
+    val textColor = if (isDark) Plum900 else Cream50
+    val shadowColor = if (isDark) Gold500.copy(alpha = 0.40f) else Plum700.copy(alpha = 0.25f)
+    val borderBrush = if (isDark) {
+        Brush.verticalGradient(
+            listOf(
+                Color(0x99FFFFFF),
+                Gold500.copy(alpha = 0.40f)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(
+                Plum300.copy(alpha = 0.50f),
+                Plum700.copy(alpha = 0.25f)
+            )
+        )
+    }
 
     Box(
         modifier = modifier
@@ -65,20 +95,15 @@ fun GlassGradientButton(
             .shadow(
                 elevation = 8.dp,
                 shape = shape,
-                spotColor = AppleIndigo.copy(alpha = 0.35f),
-                ambientColor = AppleIndigo.copy(alpha = 0.15f),
+                spotColor = shadowColor,
+                ambientColor = shadowColor.copy(alpha = 0.20f),
                 clip = false
             )
             .clip(shape)
             .background(gradientBrush, shape)
             .border(
                 width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(
-                        Color(0x80FFFFFF),
-                        Color(0x1AFFFFFF)
-                    )
-                ),
+                brush = borderBrush,
                 shape = shape
             )
             .clickable(
@@ -96,7 +121,7 @@ fun GlassGradientButton(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(22.dp),
-                color = Color.White,
+                color = textColor,
                 strokeWidth = 2.5.dp
             )
         } else {
@@ -112,7 +137,7 @@ fun GlassGradientButton(
                     text = text,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = textColor
                 )
                 if (trailingIcon != null) {
                     Spacer(modifier = Modifier.width(8.dp))
@@ -124,8 +149,7 @@ fun GlassGradientButton(
 }
 
 /**
- * Apple Liquid Glass Secondary Outlined/Translucent Button.
- * Used for secondary actions (Continue with Google, Cancel, Secondary Links).
+ * Secondary Outlined Glass Button with Gold Trim outline.
  */
 @Composable
 fun GlassSecondaryButton(
@@ -136,14 +160,29 @@ fun GlassSecondaryButton(
     shape: Shape = RoundedCornerShape(18.dp),
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
+    val colors = MaterialTheme.spendwiseColors
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(targetValue = if (isPressed) 0.97f else 1f, label = "ButtonPressScale")
 
-    val fill = if (isDark) GlassFillDark else GlassFillLight
-    val borderBrush = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
-    val textColor = if (isDark) TextPrimaryDark else TextPrimaryLight
+    val fill = colors.glassFill
+    val borderBrush = if (isDark) {
+        Brush.verticalGradient(
+            listOf(
+                Gold500.copy(alpha = 0.65f),
+                Gold500.copy(alpha = 0.25f)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            listOf(
+                Gold300.copy(alpha = 0.85f),
+                Taupe300.copy(alpha = 0.40f)
+            )
+        )
+    }
+    val textColor = colors.textPrimary
 
     Box(
         modifier = modifier
@@ -151,7 +190,7 @@ fun GlassSecondaryButton(
             .shadow(
                 elevation = 4.dp,
                 shape = shape,
-                spotColor = if (isDark) Color(0x26000000) else Color(0x0F0F172A),
+                spotColor = if (isDark) Plum950.copy(alpha = 0.5f) else Taupe700.copy(alpha = 0.1f),
                 ambientColor = Color.Transparent,
                 clip = false
             )
@@ -188,7 +227,7 @@ fun GlassSecondaryButton(
 }
 
 /**
- * Circular Glass Icon Button.
+ * Circular Glass Icon Button with Gold rim.
  */
 @Composable
 fun GlassIconButton(
@@ -198,9 +237,10 @@ fun GlassIconButton(
     isDark: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    val colors = MaterialTheme.spendwiseColors
     val haptic = LocalHapticFeedback.current
-    val fill = if (isDark) GlassFillDark else GlassFillLight
-    val borderBrush = if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush
+    val fill = colors.glassFill
+    val borderBrush = colors.glassBorderBrush
 
     Box(
         modifier = modifier
@@ -208,7 +248,7 @@ fun GlassIconButton(
             .shadow(
                 elevation = 4.dp,
                 shape = CircleShape,
-                spotColor = if (isDark) Color(0x33000000) else Color(0x140F172A),
+                spotColor = if (isDark) Plum950.copy(alpha = 0.5f) else Taupe700.copy(alpha = 0.1f),
                 ambientColor = Color.Transparent,
                 clip = false
             )

@@ -167,6 +167,7 @@ fun DashboardScreen(
             GlassCard(
                 isDark = isDark,
                 isElevated = true,
+                isHeroCard = true,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -391,8 +392,8 @@ fun DashboardScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                state.topCategories.take(4).forEach { catSpend ->
-                                    val catColor = parseCategoryColor(catSpend.category?.color)
+                                state.topCategories.take(4).forEachIndexed { idx, catSpend ->
+                                    val catColor = getCategoryChartColor(idx, catSpend.category?.color)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -741,9 +742,9 @@ fun DonutChart(
         val center = Offset(size.width / 2, size.height / 2)
         var startAngle = -90f
 
-        categories.forEach { item ->
+        categories.forEachIndexed { index, item ->
             val sweepAngle = (item.percentage / 100f) * 360f
-            val itemColor = parseCategoryColor(item.category?.color)
+            val itemColor = getCategoryChartColor(index, item.category?.color)
             drawArc(
                 color = itemColor,
                 startAngle = startAngle,
@@ -761,14 +762,22 @@ fun DonutChart(
     }
 }
 
+fun getCategoryChartColor(index: Int, colorHex: String?): Color {
+    return if (index in SpendwiseChartColors.indices) {
+        SpendwiseChartColors[index]
+    } else {
+        parseCategoryColor(colorHex)
+    }
+}
+
 fun parseCategoryColor(colorHex: String?): Color {
     return try {
         if (!colorHex.isNullOrBlank()) {
             Color(android.graphics.Color.parseColor(colorHex))
         } else {
-            AppleIndigo
+            Plum500
         }
     } catch (_: Exception) {
-        AppleIndigo
+        Plum500
     }
 }

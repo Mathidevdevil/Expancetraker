@@ -17,9 +17,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+import com.spendwise.app.ui.theme.Gold300
+import com.spendwise.app.ui.theme.Gold500
+import com.spendwise.app.ui.theme.Gold700
+import com.spendwise.app.ui.theme.Plum700
+import com.spendwise.app.ui.theme.Plum800
+import com.spendwise.app.ui.theme.Plum900
+
 /**
  * Spendwise 56dp Brand Wallet & Sparkle Logo Icon
- * Matches web/public/spendwise-icon.svg with deep navy gradient and champagne gold accents.
+ * Matches web/public/spendwise-icon.svg with royal plum gradient and champagne gold accents.
  */
 @Composable
 fun SpendwiseLogoVector(
@@ -33,16 +40,16 @@ fun SpendwiseLogoVector(
 
         // Brand gradients
         val bgBrush = Brush.linearGradient(
-            colors = listOf(Color(0xFF181C38), Color(0xFF0D0F1F)),
+            colors = listOf(Plum700, Plum900),
             start = Offset(0f, 0f),
             end = Offset(w, h)
         )
         val goldBrush = Brush.linearGradient(
-            colors = listOf(Color(0xFFFCE59F), Color(0xFFE7B94F), Color(0xFFC59328)),
+            colors = listOf(Gold300, Gold500, Gold700),
             start = Offset(w * 0.25f, h * 0.25f),
             end = Offset(w * 0.75f, h * 0.75f)
         )
-        val goldBorder = Color(0xFFE7B94F).copy(alpha = 0.35f)
+        val goldBorder = Gold500.copy(alpha = 0.35f)
 
         // 1. Base Rounded Container
         val cornerRadius = CornerRadius(16f * scale, 16f * scale)
@@ -111,7 +118,7 @@ fun SpendwiseLogoVector(
             lineTo(fLeft, fBottom)
             close()
         }
-        drawPath(flapPath, Color(0xFF14172B), style = Fill)
+        drawPath(flapPath, Plum800, style = Fill)
         drawPath(flapPath, brush = goldBrush, style = Stroke(width = 2f * scale))
 
         // Clasp gold dot

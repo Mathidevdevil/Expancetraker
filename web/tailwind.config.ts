@@ -10,9 +10,40 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-sf-pro)', '-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', '"SF Pro"', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-plus-jakarta-sans)', 'var(--font-sf-pro)', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
       },
       colors: {
+        brand: {
+          plum: {
+            950: '#1A0810',
+            900: '#2A0F1A',
+            800: '#3E1426',
+            700: '#5A1A2E',
+            600: '#7A2A3F',
+            500: '#9C4259',
+            300: '#C98A9A',
+          },
+          taupe: {
+            900: '#3F372E',
+            700: '#6B5F52',
+            500: '#8F8272',
+            300: '#B9AD9A',
+            100: '#DDD3C3',
+          },
+          gold: {
+            300: '#E8CC94',
+            500: '#D4AF6A',
+            700: '#A67C36',
+            text: '#7A5A14',
+          },
+          cream: {
+            50: '#FBF5EA',
+            100: '#F3E6D3',
+            200: '#E9D8BF',
+          },
+          navy: '#1A0810', // mapped to plum-950 for legacy references
+          cardDark: '#2A0F1A', // mapped to plum-900
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

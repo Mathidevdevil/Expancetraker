@@ -6,55 +6,56 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val LiquidGlassDarkColorScheme = darkColorScheme(
-    primary = AppleIndigoLight,
-    onPrimary = Color.White,
-    primaryContainer = Color(0x2BFFFFFF),
-    onPrimaryContainer = AppleIndigoLight,
-    secondary = IncomeEmeraldLuminous,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0x1FFFFFFF),
-    onSecondaryContainer = Color.White,
-    tertiary = TravelCyan,
-    onTertiary = Color.White,
-    background = CanvasBaseDark,
-    onBackground = TextPrimaryDark,
-    surface = GlassFillDark,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = Color(0x21FFFFFF),
-    onSurfaceVariant = TextMutedDark,
-    outline = Color(0x1FFFFFFF),
-    outlineVariant = Color(0x33FFFFFF),
-    error = ExpenseRoseLuminous,
-    onError = Color.White
+private val RoyalPlumDarkColorScheme = darkColorScheme(
+    primary = Gold500,
+    onPrimary = Plum900,
+    primaryContainer = Plum800,
+    onPrimaryContainer = Cream50,
+    secondary = IncomeDark,
+    onSecondary = Plum900,
+    secondaryContainer = Color(0x28FBF5EA),
+    onSecondaryContainer = Cream50,
+    tertiary = Plum300,
+    onTertiary = Plum900,
+    background = Plum950,
+    onBackground = Cream50,
+    surface = Plum900,
+    onSurface = Cream50,
+    surfaceVariant = Plum800,
+    onSurfaceVariant = Taupe300,
+    outline = Gold500.copy(alpha = 0.30f),
+    outlineVariant = Gold500.copy(alpha = 0.50f),
+    error = ExpenseDark,
+    onError = Plum900
 )
 
-private val LiquidGlassLightColorScheme = lightColorScheme(
-    primary = AppleIndigo,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xCCEEF2FF),
-    onPrimaryContainer = AppleIndigo,
-    secondary = IncomeEmerald,
+private val RoyalPlumLightColorScheme = lightColorScheme(
+    primary = Plum700,
+    onPrimary = Cream50,
+    primaryContainer = Cream200,
+    onPrimaryContainer = Plum900,
+    secondary = IncomeLight,
     onSecondary = Color.White,
     secondaryContainer = Color(0xB3FFFFFF),
-    onSecondaryContainer = TextPrimaryLight,
-    tertiary = TravelCyan,
+    onSecondaryContainer = Plum900,
+    tertiary = GoldTextOnLight,
     onTertiary = Color.White,
-    background = CanvasBaseLight,
-    onBackground = TextPrimaryLight,
-    surface = GlassFillLight,
-    onSurface = TextPrimaryLight,
-    surfaceVariant = Color(0x80F1F3F9),
-    onSurfaceVariant = TextMutedLight,
-    outline = Color(0x260F172A),
-    outlineVariant = Color(0x400F172A),
-    error = ExpenseRose,
+    background = Cream100,
+    onBackground = Plum900,
+    surface = Cream50,
+    onSurface = Plum900,
+    surfaceVariant = Cream200,
+    onSurfaceVariant = Taupe700,
+    outline = Gold300.copy(alpha = 0.40f),
+    outlineVariant = Gold300.copy(alpha = 0.70f),
+    error = ExpenseLight,
     onError = Color.White
 )
 
@@ -63,7 +64,8 @@ fun SpendwiseTheme(
     darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) LiquidGlassDarkColorScheme else LiquidGlassLightColorScheme
+    val colorScheme = if (darkTheme) RoyalPlumDarkColorScheme else RoyalPlumLightColorScheme
+    val spendwiseColors = if (darkTheme) DarkSpendwiseColors else LightSpendwiseColors
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -81,9 +83,11 @@ fun SpendwiseTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = AppTypography,
-        content = content
-    )
+    CompositionLocalProvider(LocalSpendwiseColors provides spendwiseColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = AppTypography,
+            content = content
+        )
+    }
 }

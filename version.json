@@ -1,7 +1,7 @@
 {
-  "version_code": 7,
-  "version_name": "1.0.6",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.6.apk",
-  "changelog": "• Apple Liquid Glass notched bottom bar & champagne gold (+) action button\n• Production release signing & OTA compatibility\n• 140dp bottom content clearance for all scrolling screens\n• Realtime Supabase offline sync & stability enhancements",
+  "version_code": 8,
+  "version_name": "1.0.7",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.7.apk",
+  "changelog": "• Royal Plum + Champagne Taupe + Gold trim luxury theme\n• Velvet noise hero cards & notched liquid glass bottom bar\n• Unified single-key release signing & seamless OTA updates\n• 6-color category palette & high-contrast WCAG AA compliance",
   "is_mandatory": false
 }

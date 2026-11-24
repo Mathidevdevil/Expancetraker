@@ -28,7 +28,7 @@ export function QuickAddModal({
   initialType = 'expense',
   editingTransaction = null,
 }: QuickAddModalProps) {
-  const { categories, trips, currency, addTransaction, updateTransaction } = useFinance();
+  const { categories, trips, currency, addTransaction, updateTransaction, addCategory } = useFinance();
 
   const [type, setType] = useState<TransactionType>(initialType);
   const [amount, setAmount] = useState<string>('');
