@@ -54,7 +54,7 @@ object CurrencyFormatter {
      */
     fun formatFriendlyDate(dateStr: String): String {
         return try {
-            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val date = parser.parse(dateStr) ?: return dateStr
 
             val today = Calendar.getInstance()
@@ -86,7 +86,7 @@ object CurrencyFormatter {
      */
     fun formatTripDateRange(startDateStr: String, endDateStr: String): String {
         return try {
-            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val sDate = parser.parse(startDateStr)
             val eDate = parser.parse(endDateStr)
             if (sDate != null && eDate != null) {

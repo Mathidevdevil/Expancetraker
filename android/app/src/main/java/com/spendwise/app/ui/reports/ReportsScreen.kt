@@ -84,7 +84,7 @@ class ReportsViewModel @Inject constructor(
             }
 
             // Bucket by month
-            val tSdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val tSdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             runCatching {
                 val date = tSdf.parse(t.date)
                 if (date != null) {

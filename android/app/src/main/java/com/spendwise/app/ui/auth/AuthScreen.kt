@@ -166,13 +166,13 @@ class AuthViewModel @Inject constructor(
 
                         if (session != null && authUser != null) {
                             // Instant login without confirmation requirement
-                            repository.authUserId = authUser.id
-                            repository.syncFromCloud()
                             val prevEmail = repository.userProfile.value.email
                             if (prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
                                 repository.clearAllUserData()
                             }
+                            repository.authUserId = authUser.id
                             updateProfileFromEmail(cleanEmail, fullName)
+                            repository.syncFromCloud()
                             repository.isLoggedIn = true
                             onComplete()
                             return@launch
@@ -190,16 +190,16 @@ class AuthViewModel @Inject constructor(
                             this.email = cleanEmail
                             this.password = pass
                         }
-                        val authUser = client.auth.currentUserOrNull()
-                        if (authUser != null) {
-                            repository.authUserId = authUser.id
-                        }
-                        repository.syncFromCloud()
                         val prevEmail = repository.userProfile.value.email
                         if (prevEmail.isNotBlank() && prevEmail != cleanEmail && prevEmail != "user@spendwise.app") {
                             repository.clearAllUserData()
                         }
+                        val authUser = client.auth.currentUserOrNull()
+                        if (authUser != null) {
+                            repository.authUserId = authUser.id
+                        }
                         updateProfileFromEmail(cleanEmail, fullName)
+                        repository.syncFromCloud()
                         repository.isLoggedIn = true
                         onComplete()
                         return@launch
@@ -296,6 +296,12 @@ class AuthViewModel @Inject constructor(
                         val email = googleIdTokenCredential.id
                         val displayName = googleIdTokenCredential.displayName?.takeIf { it.isNotBlank() } ?: email.substringBefore("@")
 
+                        val prevEmail = repository.userProfile.value.email
+                        if (prevEmail.isNotBlank() && prevEmail != email && prevEmail != "user@spendwise.app") {
+                            repository.clearAllUserData()
+                        }
+                        repository.updateProfile(displayName, email)
+
                         if (supabaseProvider.isConfigured) {
                             try {
                                 val client = supabaseProvider.getClient()
@@ -313,11 +319,6 @@ class AuthViewModel @Inject constructor(
                             }
                         }
 
-                        val prevEmail = repository.userProfile.value.email
-                        if (prevEmail.isNotBlank() && prevEmail != email && prevEmail != "user@spendwise.app") {
-                            repository.clearAllUserData()
-                        }
-                        repository.updateProfile(displayName, email)
                         repository.isLoggedIn = true
                         signedIn = true
                         onComplete()

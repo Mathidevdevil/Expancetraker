@@ -22,6 +22,14 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string }[] = [
   { id: 'net_banking', label: 'NetBanking' },
 ];
 
+function getLocalTodayIso(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function QuickAddModal({
   isOpen,
   onClose,
@@ -34,12 +42,16 @@ export function QuickAddModal({
   const [amount, setAmount] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string>('');
   const [tripId, setTripId] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(getLocalTodayIso);
   const [note, setNote] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string>('');
 
+  // Only reset form fields when modal opens or editing target changes (never when categories update!)
   useEffect(() => {
+    if (!isOpen) return;
+    setFormError('');
     if (editingTransaction) {
       setType(editingTransaction.type);
       setAmount(String(editingTransaction.amount));
@@ -54,18 +66,35 @@ export function QuickAddModal({
       const defaultCat = categories.find((c) => c.type === initialType);
       setCategoryId(defaultCat?.id || '');
       setTripId('');
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(getLocalTodayIso());
       setNote('');
       setPaymentMethod('upi');
     }
-  }, [editingTransaction, initialType, categories, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingTransaction, initialType, isOpen]);
 
   const filteredCategories = categories.filter((c) => c.type === type);
 
+  // Ensure a valid category is selected for the active type without overwriting an already valid choice
+  useEffect(() => {
+    if (!isOpen) return;
+    if (filteredCategories.length === 0) return;
+    const isStillValid = categoryId && filteredCategories.some((c) => c.id === categoryId);
+    if (!isStillValid) {
+      setCategoryId(filteredCategories[0].id);
+    }
+  }, [filteredCategories, categoryId, isOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) return;
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
+      setFormError('Please enter an amount greater than 0.');
+      return;
+    }
+
+    const effectiveCategoryId = categoryId || filteredCategories[0]?.id || null;
 
     setIsSubmitting(true);
     try {
@@ -73,8 +102,8 @@ export function QuickAddModal({
         await updateTransaction(editingTransaction.id, {
           type,
           amount: numAmount,
-          category_id: categoryId || null,
-          trip_id: tripId || null,
+          category_id: effectiveCategoryId,
+          trip_id: type === 'expense' ? tripId || null : null,
           date,
           note: note.trim() || null,
           payment_method: paymentMethod,
@@ -83,16 +112,17 @@ export function QuickAddModal({
         await addTransaction({
           type,
           amount: numAmount,
-          category_id: categoryId || null,
-          trip_id: tripId || null,
+          category_id: effectiveCategoryId,
+          trip_id: type === 'expense' ? tripId || null : null,
           date,
           note: note.trim() || null,
           payment_method: paymentMethod,
         });
       }
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setFormError(err?.message || 'Could not save transaction. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -100,7 +130,9 @@ export function QuickAddModal({
 
   const handleQuickAddAmount = (add: number) => {
     const current = parseFloat(amount) || 0;
-    setAmount(String(current + add));
+    const next = Math.round((current + add) * 100) / 100;
+    setAmount(String(next));
+    if (formError) setFormError('');
   };
 
   return (
@@ -111,6 +143,11 @@ export function QuickAddModal({
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        {formError && (
+          <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-400 text-xs font-semibold">
+            {formError}
+          </div>
+        )}
         {/* Type Toggle: Expense / Income */}
         <div className="grid grid-cols-2 gap-2 p-1 bg-secondary rounded-2xl">
           <button

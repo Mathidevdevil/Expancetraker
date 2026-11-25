@@ -113,6 +113,7 @@ class BudgetsViewModel @Inject constructor(
             totalBudget = tBudget,
             totalSpent = tSpent,
             monthName = mName,
+            currencySymbol = repository.selectedCurrencySymbol,
             availableCategories = availCats
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BudgetsUiState())

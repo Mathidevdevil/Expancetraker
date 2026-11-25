@@ -13,12 +13,13 @@ import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
@@ -76,27 +77,87 @@ class FinanceRepository @Inject constructor(
         }
     }
 
+    private fun nowIsoUtc(): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        return sdf.format(Date())
+    }
+
+    private fun todayIsoDate(): String {
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    }
+
+    private val canonicalCategoryAliases = mapOf(
+        "food & dining" to "cat-food",
+        "transportation" to "cat-trans",
+        "shopping" to "cat-shop",
+        "entertainment" to "cat-ent",
+        "bills & utilities" to "cat-bills",
+        "healthcare" to "cat-health",
+        "travel" to "cat-travel",
+        "groceries" to "cat-groc",
+        "education" to "cat-edu",
+        "other expense" to "cat-other-exp",
+        "salary" to "cat-sal",
+        "investment" to "cat-inv",
+        "freelance" to "cat-free",
+        "gift / bonus" to "cat-gift",
+        "other income" to "cat-other-inc"
+    )
+
     private suspend fun resolveCanonicalCategoryId(categoryId: String?): String? {
         if (categoryId == null) return null
         if (categoryId.startsWith("cat-")) return categoryId
         val cat = categoryDao.getCategoryById(categoryId) ?: return categoryId
-        return when (cat.name.lowercase().trim()) {
-            "food & dining" -> "cat-food"
-            "transportation" -> "cat-trans"
-            "shopping" -> "cat-shop"
-            "entertainment" -> "cat-ent"
-            "bills & utilities" -> "cat-bills"
-            "healthcare" -> "cat-health"
-            "travel" -> "cat-travel"
-            "groceries" -> "cat-groc"
-            "education" -> "cat-edu"
-            "salary" -> "cat-sal"
-            "investment" -> "cat-inv"
-            "freelance" -> "cat-free"
-            "gift / bonus" -> "cat-gift"
-            "other income" -> "cat-other-inc"
-            else -> "cat-other-exp"
+        val mapped = canonicalCategoryAliases[cat.name.lowercase().trim()]
+        // Only remap if it's a legacy/default duplicate of a system category; preserve all user custom category IDs!
+        return if (mapped != null && (cat.isDefault || cat.userId == null)) {
+            mapped
+        } else {
+            cat.id
         }
+    }
+
+    private suspend fun ensureDefaultCategoriesSeeded() {
+        val defaults = listOf(
+            CategoryEntity(id = "cat-food", name = "Food & Dining", type = "expense", icon = "Utensils", color = "#EF4444", isDefault = true),
+            CategoryEntity(id = "cat-trans", name = "Transportation", type = "expense", icon = "Car", color = "#F59E0B", isDefault = true),
+            CategoryEntity(id = "cat-shop", name = "Shopping", type = "expense", icon = "ShoppingBag", color = "#EC4899", isDefault = true),
+            CategoryEntity(id = "cat-ent", name = "Entertainment", type = "expense", icon = "Film", color = "#8B5CF6", isDefault = true),
+            CategoryEntity(id = "cat-bills", name = "Bills & Utilities", type = "expense", icon = "Zap", color = "#3B82F6", isDefault = true),
+            CategoryEntity(id = "cat-health", name = "Healthcare", type = "expense", icon = "HeartPulse", color = "#10B981", isDefault = true),
+            CategoryEntity(id = "cat-travel", name = "Travel", type = "expense", icon = "Plane", color = "#06B6D4", isDefault = true),
+            CategoryEntity(id = "cat-groc", name = "Groceries", type = "expense", icon = "ShoppingCart", color = "#84CC16", isDefault = true),
+            CategoryEntity(id = "cat-edu", name = "Education", type = "expense", icon = "GraduationCap", color = "#6366F1", isDefault = true),
+            CategoryEntity(id = "cat-other-exp", name = "Other Expense", type = "expense", icon = "MoreHorizontal", color = "#64748B", isDefault = true),
+            CategoryEntity(id = "cat-sal", name = "Salary", type = "income", icon = "Briefcase", color = "#10B981", isDefault = true),
+            CategoryEntity(id = "cat-inv", name = "Investment", type = "income", icon = "TrendingUp", color = "#059669", isDefault = true),
+            CategoryEntity(id = "cat-free", name = "Freelance", type = "income", icon = "Laptop", color = "#34D399", isDefault = true),
+            CategoryEntity(id = "cat-gift", name = "Gift / Bonus", type = "income", icon = "Gift", color = "#2DD4BF", isDefault = true),
+            CategoryEntity(id = "cat-other-inc", name = "Other Income", type = "income", icon = "PlusCircle", color = "#14B8A6", isDefault = true)
+        )
+        categoryDao.insertAll(defaults)
+    }
+
+    private fun deduplicateCategories(list: List<CategoryEntity>): List<CategoryEntity> {
+        val grouped = LinkedHashMap<String, CategoryEntity>()
+        for (cat in list) {
+            val key = "${cat.name.trim().lowercase()}|${cat.type.trim().lowercase()}"
+            val existing = grouped[key]
+            if (existing == null) {
+                grouped[key] = cat
+            } else {
+                // Always prefer canonical global slug ID ('cat-*') over copied UUID defaults
+                val existingCanonical = existing.id.startsWith("cat-")
+                val candidateCanonical = cat.id.startsWith("cat-")
+                if (!existingCanonical && candidateCanonical) {
+                    grouped[key] = cat
+                } else if (existingCanonical == candidateCanonical && existing.isDefault && !cat.isDefault) {
+                    grouped[key] = cat
+                }
+            }
+        }
+        return grouped.values.toList()
     }
 
     var selectedCurrency: String
@@ -206,18 +267,26 @@ class FinanceRepository @Inject constructor(
         categoryDao.getAllCategories(),
         tripDao.getAllTrips()
     ) { txs, cats, trips ->
+        val dedupedCats = deduplicateCategories(cats)
         val catMap = cats.associateBy { it.id }
+        val canonicalMap = dedupedCats.associateBy { it.id }
         val tripMap = trips.associateBy { it.id }
         txs.map { tx ->
+            val rawCat = tx.categoryId?.let { catMap[it] }
+            val resolvedCat = when {
+                rawCat != null && (!rawCat.isDefault || rawCat.id.startsWith("cat-")) -> rawCat
+                rawCat != null -> canonicalCategoryAliases[rawCat.name.trim().lowercase()]?.let { canonicalMap[it] } ?: rawCat
+                else -> tx.categoryId?.let { canonicalMap[it] }
+            }
             TransactionWithDetails(
                 transaction = tx,
-                category = tx.categoryId?.let { catMap[it] },
+                category = resolvedCat,
                 trip = tx.tripId?.let { tripMap[it] }
             )
         }
     }
 
-    val allCategories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
+    val allCategories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories().map { deduplicateCategories(it) }
     val allTrips: Flow<List<TripEntity>> = tripDao.getAllTrips()
     val allBudgets: Flow<List<BudgetEntity>> = budgetDao.getAllBudgets()
 
@@ -246,9 +315,11 @@ class FinanceRepository @Inject constructor(
                 val pendingCats = categoryDao.getPendingSyncCategories()
                 for (cat in pendingCats) {
                     try {
-                        val targetCat = if (cat.userId.isNullOrBlank() && currentUserId != "user@spendwise.app") {
-                            cat.copy(userId = currentUserId)
-                        } else cat
+                        val targetCat = cat.copy(
+                            userId = if (cat.isDefault) null else (cat.userId?.takeIf { it.isNotBlank() } ?: currentUserId),
+                            createdAt = cat.createdAt.ifBlank { nowIsoUtc() }
+                        )
+                        categoryDao.insertOrUpdate(targetCat)
                         client.from("categories").upsert(targetCat)
                         categoryDao.updateSyncStatus(cat.id, SyncStatus.SYNCED)
                         Log.i("FinanceRepository", "Synced offline category ${cat.name} to cloud")
@@ -275,9 +346,13 @@ class FinanceRepository @Inject constructor(
                 val pendingTrips = tripDao.getPendingSyncTrips()
                 for (trip in pendingTrips) {
                     try {
-                        val targetTrip = if (trip.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
-                            trip.copy(userId = currentUserId)
-                        } else trip
+                        val targetTrip = trip.copy(
+                            userId = if ((trip.userId == "user@spendwise.app" || trip.userId == "default-user" || trip.userId.isBlank()) && currentUserId != "user@spendwise.app") {
+                                currentUserId
+                            } else trip.userId,
+                            createdAt = trip.createdAt.ifBlank { nowIsoUtc() }
+                        )
+                        tripDao.insertOrUpdate(targetTrip)
                         client.from("trips").upsert(targetTrip)
                         tripDao.updateSyncStatus(trip.id, SyncStatus.SYNCED)
                         Log.i("FinanceRepository", "Synced offline trip ${trip.destination} to cloud")
@@ -304,9 +379,16 @@ class FinanceRepository @Inject constructor(
                 val pendingTxs = transactionDao.getPendingSyncTransactions()
                 for (tx in pendingTxs) {
                     try {
-                        val targetTx = if (tx.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
-                            tx.copy(userId = currentUserId)
-                        } else tx
+                        val resolvedCatId = resolveCanonicalCategoryId(tx.categoryId)
+                        val targetTx = tx.copy(
+                            userId = if (tx.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
+                                currentUserId
+                            } else tx.userId,
+                            categoryId = resolvedCatId,
+                            createdAt = tx.createdAt.ifBlank { nowIsoUtc() }
+                        )
+                        ensureParentsExistInCloud(targetTx.categoryId, targetTx.tripId, currentUserId)
+                        transactionDao.insertOrUpdate(targetTx)
                         client.from("transactions").upsert(targetTx)
                         transactionDao.updateSyncStatus(tx.id, SyncStatus.SYNCED)
                         Log.i("FinanceRepository", "Synced offline transaction ${tx.id} (${tx.type} ₹${tx.amount}) to cloud")
@@ -333,9 +415,15 @@ class FinanceRepository @Inject constructor(
                 val pendingBudgets = budgetDao.getPendingSyncBudgets()
                 for (b in pendingBudgets) {
                     try {
-                        val targetBudget = if (b.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
-                            b.copy(userId = currentUserId)
-                        } else b
+                        val targetBudget = b.copy(
+                            userId = if (b.userId == "user@spendwise.app" && currentUserId != "user@spendwise.app") {
+                                currentUserId
+                            } else b.userId,
+                            categoryId = resolveCanonicalCategoryId(b.categoryId) ?: b.categoryId,
+                            createdAt = b.createdAt.ifBlank { nowIsoUtc() }
+                        )
+                        ensureParentsExistInCloud(targetBudget.categoryId, null, currentUserId)
+                        budgetDao.insertOrUpdate(targetBudget)
                         client.from("budgets").upsert(targetBudget)
                         budgetDao.updateSyncStatus(b.id, SyncStatus.SYNCED)
                         Log.i("FinanceRepository", "Synced offline budget ${b.id} to cloud")
@@ -433,21 +521,73 @@ class FinanceRepository @Inject constructor(
                     Log.w("FinanceRepository", "Error fetching remote budgets: ${e.message}")
                 }
 
-                // 4. Categories (seed defaults & user custom)
+                // 4. Categories (seed canonical defaults + only current user's custom categories)
                 try {
-                    val remoteCats = client.from("categories").select().decodeList<CategoryEntity>()
+                    ensureDefaultCategoriesSeeded()
+                    val remoteCats = client.from("categories").select {
+                        filter {
+                            or {
+                                exact("user_id", null)
+                                isIn("user_id", userIds)
+                            }
+                        }
+                    }.decodeList<CategoryEntity>()
+
                     if (remoteCats.isNotEmpty()) {
                         val pendingCatIds = categoryDao.getPendingSyncCategories().map { it.id }.toSet()
-                        val safeCats = remoteCats.filter { !pendingCatIds.contains(it.id) }
-                        if (safeCats.isNotEmpty()) {
-                            categoryDao.insertAll(safeCats)
+                        val filteredCats = remoteCats.filter { cat ->
+                            val belongsToUser = cat.userId == null || userIds.contains(cat.userId)
+                            val isClonedDefault = cat.isDefault && !cat.id.startsWith("cat-")
+                            if (isClonedDefault) {
+                                // Migrate any local references from legacy cloned default UUIDs to canonical cat-* slug
+                                canonicalCategoryAliases[cat.name.trim().lowercase()]?.let { canonicalId ->
+                                    transactionDao.migrateCategoryIds(cat.id, canonicalId)
+                                    categoryDao.migrateBudgetCategoryIds(cat.id, canonicalId)
+                                }
+                            }
+                            belongsToUser && !isClonedDefault && !pendingCatIds.contains(cat.id)
+                        }
+                        if (filteredCats.isNotEmpty()) {
+                            categoryDao.insertAll(filteredCats)
                         }
                     }
+                    categoryDao.cleanLegacyCategories()
                 } catch (e: Exception) {
                     Log.w("FinanceRepository", "Error fetching remote categories: ${e.message}")
                 }
             } catch (e: Exception) {
                 Log.e("FinanceRepository", "Cloud sync exception: ${e.message}", e)
+            }
+        }
+    }
+
+    private suspend fun ensureParentsExistInCloud(categoryId: String?, tripId: String?, currentUserId: String) {
+        if (!supabaseProvider.isConfigured || currentUserId == "demo-user") return
+        val client = supabaseProvider.getClient()
+        if (!categoryId.isNullOrBlank() && !categoryId.startsWith("cat-")) {
+            val cat = categoryDao.getCategoryById(categoryId)
+            if (cat != null && cat.syncStatus != SyncStatus.SYNCED) {
+                runCatching {
+                    val cloudCat = cat.copy(
+                        userId = if (cat.isDefault) null else (cat.userId?.takeIf { it.isNotBlank() } ?: currentUserId),
+                        createdAt = cat.createdAt.ifBlank { nowIsoUtc() }
+                    )
+                    client.from("categories").upsert(cloudCat)
+                    categoryDao.insertOrUpdate(cloudCat.copy(syncStatus = SyncStatus.SYNCED))
+                }
+            }
+        }
+        if (!tripId.isNullOrBlank()) {
+            val trip = tripDao.getTripById(tripId)
+            if (trip != null && trip.syncStatus != SyncStatus.SYNCED) {
+                runCatching {
+                    val cloudTrip = trip.copy(
+                        userId = if (trip.userId.isBlank() || trip.userId == "default-user" || trip.userId == "user@spendwise.app") currentUserId else trip.userId,
+                        createdAt = trip.createdAt.ifBlank { nowIsoUtc() }
+                    )
+                    client.from("trips").upsert(cloudTrip)
+                    tripDao.insertOrUpdate(cloudTrip.copy(syncStatus = SyncStatus.SYNCED))
+                }
             }
         }
     }
@@ -459,7 +599,7 @@ class FinanceRepository @Inject constructor(
         tripId: String?,
         paymentMethod: String,
         note: String?,
-        date: String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+        date: String = todayIsoDate(),
         type: String = "expense"
     ) {
         val currentUserId = getEffectiveUserId()
@@ -473,7 +613,7 @@ class FinanceRepository @Inject constructor(
             date = date,
             note = note,
             paymentMethod = paymentMethod,
-            createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date()),
+            createdAt = nowIsoUtc(),
             syncStatus = SyncStatus.PENDING_INSERT
         )
         transactionDao.insertOrUpdate(tx)
@@ -482,6 +622,7 @@ class FinanceRepository @Inject constructor(
         if (supabaseProvider.isConfigured && currentUserId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
+                    ensureParentsExistInCloud(canonicalCatId, tripId, currentUserId)
                     supabaseProvider.getClient().from("transactions").upsert(tx)
                     transactionDao.insertOrUpdate(tx.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
@@ -492,12 +633,18 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun insertTransaction(transaction: TransactionEntity) {
+        val currentUserId = getEffectiveUserId()
         val canonicalCatId = resolveCanonicalCategoryId(transaction.categoryId)
-        val cleanTx = if (canonicalCatId != transaction.categoryId) transaction.copy(categoryId = canonicalCatId) else transaction
+        val cleanTx = transaction.copy(
+            userId = if (transaction.userId.isBlank() || transaction.userId == "default-user") currentUserId else transaction.userId,
+            categoryId = canonicalCatId,
+            createdAt = transaction.createdAt.ifBlank { nowIsoUtc() }
+        )
         transactionDao.insertOrUpdate(cleanTx)
         if (supabaseProvider.isConfigured && cleanTx.userId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
+                    ensureParentsExistInCloud(cleanTx.categoryId, cleanTx.tripId, currentUserId)
                     supabaseProvider.getClient().from("transactions").upsert(cleanTx)
                     transactionDao.insertOrUpdate(cleanTx.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
@@ -508,13 +655,19 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun updateTransaction(transaction: TransactionEntity) {
+        val currentUserId = getEffectiveUserId()
         val canonicalCatId = resolveCanonicalCategoryId(transaction.categoryId)
-        val cleanTx = if (canonicalCatId != transaction.categoryId) transaction.copy(categoryId = canonicalCatId) else transaction
+        val cleanTx = transaction.copy(
+            userId = if (transaction.userId.isBlank() || transaction.userId == "default-user") currentUserId else transaction.userId,
+            categoryId = canonicalCatId,
+            createdAt = transaction.createdAt.ifBlank { nowIsoUtc() }
+        )
         val updated = cleanTx.copy(syncStatus = SyncStatus.PENDING_UPDATE)
         transactionDao.insertOrUpdate(updated)
         if (supabaseProvider.isConfigured && updated.userId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
+                    ensureParentsExistInCloud(updated.categoryId, updated.tripId, currentUserId)
                     supabaseProvider.getClient().from("transactions").upsert(updated)
                     transactionDao.insertOrUpdate(updated.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
@@ -541,11 +694,17 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun insertCategory(category: CategoryEntity) {
-        categoryDao.insertOrUpdate(category)
-        if (supabaseProvider.isConfigured && category.userId != null) {
+        val currentUserId = getEffectiveUserId()
+        val cleanCat = category.copy(
+            userId = if (category.isDefault) null else (category.userId?.takeIf { it.isNotBlank() } ?: currentUserId),
+            createdAt = category.createdAt.ifBlank { nowIsoUtc() }
+        )
+        categoryDao.insertOrUpdate(cleanCat)
+        if (supabaseProvider.isConfigured && cleanCat.userId != null && cleanCat.userId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
-                    supabaseProvider.getClient().from("categories").upsert(category)
+                    supabaseProvider.getClient().from("categories").upsert(cleanCat)
+                    categoryDao.insertOrUpdate(cleanCat.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
                     Log.w("FinanceRepository", "Error uploading category to Supabase: ${e.message}")
                 }
@@ -585,7 +744,7 @@ class FinanceRepository @Inject constructor(
             month = month,
             year = year,
             amount = amount,
-            createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date()),
+            createdAt = nowIsoUtc(),
             syncStatus = if (existingId != null) SyncStatus.PENDING_UPDATE else SyncStatus.PENDING_INSERT
         )
         budgetDao.insertOrUpdate(budget)
@@ -593,6 +752,7 @@ class FinanceRepository @Inject constructor(
         if (supabaseProvider.isConfigured && currentUserId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
+                    ensureParentsExistInCloud(canonicalCatId, null, currentUserId)
                     supabaseProvider.getClient().from("budgets").upsert(budget)
                     budgetDao.insertOrUpdate(budget.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
@@ -619,12 +779,17 @@ class FinanceRepository @Inject constructor(
     }
 
     suspend fun insertTrip(trip: TripEntity) {
-        tripDao.insertOrUpdate(trip)
-        if (supabaseProvider.isConfigured && trip.userId != "demo-user") {
+        val currentUserId = getEffectiveUserId()
+        val cleanTrip = trip.copy(
+            userId = if (trip.userId.isBlank() || trip.userId == "default-user" || trip.userId == "user@spendwise.app") currentUserId else trip.userId,
+            createdAt = trip.createdAt.ifBlank { nowIsoUtc() }
+        )
+        tripDao.insertOrUpdate(cleanTrip)
+        if (supabaseProvider.isConfigured && cleanTrip.userId != "demo-user") {
             withContext(Dispatchers.IO) {
                 try {
-                    supabaseProvider.getClient().from("trips").upsert(trip)
-                    tripDao.insertOrUpdate(trip.copy(syncStatus = SyncStatus.SYNCED))
+                    supabaseProvider.getClient().from("trips").upsert(cleanTrip)
+                    tripDao.insertOrUpdate(cleanTrip.copy(syncStatus = SyncStatus.SYNCED))
                 } catch (e: Exception) {
                     Log.w("FinanceRepository", "Error uploading trip to Supabase: ${e.message}")
                 }

@@ -59,6 +59,47 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY_PREFIX = 'spendwise_data_';
 
+const CANONICAL_CATEGORY_SLUGS: Record<string, string> = {
+  'food & dining': 'cat-food',
+  'transportation': 'cat-trans',
+  'shopping': 'cat-shop',
+  'entertainment': 'cat-ent',
+  'bills & utilities': 'cat-bills',
+  'healthcare': 'cat-health',
+  'travel': 'cat-travel',
+  'groceries': 'cat-groc',
+  'education': 'cat-edu',
+  'other expense': 'cat-other-exp',
+  'salary': 'cat-sal',
+  'investment': 'cat-inv',
+  'freelance': 'cat-free',
+  'gift / bonus': 'cat-gift',
+  'other income': 'cat-other-inc',
+};
+
+function deduplicateCategories(list: Category[], allowedUserIds?: string[]): Category[] {
+  const map = new Map<string, Category>();
+  for (const cat of list) {
+    if (allowedUserIds && cat.user_id && !allowedUserIds.includes(cat.user_id)) {
+      continue;
+    }
+    const key = `${cat.name.trim().toLowerCase()}|${cat.type}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, cat);
+    } else {
+      const existingCanonical = existing.id.startsWith('cat-') && existing.user_id === null;
+      const candidateCanonical = cat.id.startsWith('cat-') && cat.user_id === null;
+      if (!existingCanonical && candidateCanonical) {
+        map.set(key, cat);
+      } else if (existing.is_default && !existing.id.startsWith('cat-') && !cat.is_default) {
+        map.set(key, cat);
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [currencyCode, setCurrencyCodeState] = useState<CurrencyCode>('INR');
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
@@ -107,7 +148,11 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const storedBudgets = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
       const storedTrips = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
 
-      if (storedCats) setCategories(JSON.parse(storedCats));
+      if (storedCats) {
+        const parsedCats = JSON.parse(storedCats) as Category[];
+        const currentIds = userProfile?.email && userProfile.email !== 'user@spendwise.app' ? [userProfile.email] : undefined;
+        setCategories(deduplicateCategories([...DEFAULT_CATEGORIES, ...parsedCats], currentIds));
+      }
       if (storedTxs) setTransactions(JSON.parse(storedTxs));
       if (storedBudgets) setBudgets(JSON.parse(storedBudgets));
       if (storedTrips) setTrips(JSON.parse(storedTrips));
@@ -199,14 +244,18 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
       const ids = Array.from(new Set([userId, user?.id, email, authEmail].filter((id): id is string => Boolean(id) && id !== 'user@spendwise.app')));
       const queryIds = ids.length > 0 ? ids : [userId];
 
+      const catFilter = ['user_id.is.null', ...queryIds.map((id) => `user_id.eq.${id}`)].join(',');
       const [catsRes, tripsRes, txsRes, budgetsRes] = await Promise.all([
-        supabase.from('categories').select('*').order('created_at', { ascending: true }),
+        supabase.from('categories').select('*').or(catFilter).order('created_at', { ascending: true }),
         supabase.from('trips').select('*').in('user_id', queryIds).order('start_date', { ascending: false }),
         supabase.from('transactions').select('*').in('user_id', queryIds).order('date', { ascending: false }),
         supabase.from('budgets').select('*').in('user_id', queryIds),
       ]);
 
-      if (catsRes.data && catsRes.data.length > 0) setCategories(catsRes.data);
+      if (catsRes.data) {
+        const cleaned = deduplicateCategories([...DEFAULT_CATEGORIES, ...(catsRes.data as Category[])], queryIds);
+        setCategories(cleaned);
+      }
       if (tripsRes.data) setTrips(tripsRes.data);
       if (txsRes.data) setTransactions(txsRes.data);
       if (budgetsRes.data) setBudgets(budgetsRes.data);
@@ -240,12 +289,19 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'categories' },
         (payload) => {
+          const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Category;
+          if (row?.user_id && row.user_id !== user.id && row.user_id !== user.email) {
+            return;
+          }
+          if (row?.is_default && !row.id?.startsWith('cat-')) {
+            return;
+          }
           if (payload.eventType === 'INSERT') {
-            setCategories((prev) => [...prev.filter((c) => c.id !== payload.new.id), payload.new as Category]);
+            setCategories((prev) => deduplicateCategories([...prev.filter((c) => c.id !== row.id), row]));
           } else if (payload.eventType === 'UPDATE') {
-            setCategories((prev) => prev.map((c) => (c.id === payload.new.id ? (payload.new as Category) : c)));
+            setCategories((prev) => deduplicateCategories(prev.map((c) => (c.id === row.id ? row : c))));
           } else if (payload.eventType === 'DELETE') {
-            setCategories((prev) => prev.filter((c) => c.id !== payload.old.id));
+            setCategories((prev) => prev.filter((c) => c.id !== row.id));
           }
         }
       )
@@ -302,11 +358,54 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 5. Transaction Actions (Optimistic)
+  const resolveValidCategoryId = async (rawCategoryId: string | null | undefined, targetUserId: string): Promise<string | null> => {
+    if (!rawCategoryId) return null;
+    if (rawCategoryId.startsWith('cat-') && DEFAULT_CATEGORIES.some((d) => d.id === rawCategoryId)) {
+      return rawCategoryId;
+    }
+    const localCat = categories.find((c) => c.id === rawCategoryId);
+    if (!localCat) return rawCategoryId;
+    const canonical = CANONICAL_CATEGORY_SLUGS[localCat.name.trim().toLowerCase()];
+    if (canonical && localCat.is_default) return canonical;
+
+    // Ensure custom local category exists in Supabase before linking a transaction to avoid FK failure
+    if (isSupabaseLive && targetUserId && targetUserId !== 'demo-user') {
+      try {
+        const { data: existing } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('id', localCat.id)
+          .maybeSingle();
+        if (!existing) {
+          const { data: inserted } = await supabase
+            .from('categories')
+            .upsert({
+              id: localCat.id,
+              user_id: localCat.user_id || targetUserId,
+              name: localCat.name,
+              type: localCat.type,
+              icon: localCat.icon,
+              color: localCat.color,
+              is_default: false,
+            })
+            .select()
+            .single();
+          if (inserted?.id) return inserted.id;
+        }
+      } catch (e) {
+        console.warn('Could not sync custom category before transaction insert:', e);
+      }
+    }
+    return rawCategoryId;
+  };
+
   const addTransaction = async (txData: Omit<Transaction, 'id' | 'created_at' | 'user_id'>): Promise<Transaction> => {
-    const targetUserId = user?.id || userProfile?.email || 'user@spendwise.app';
+    const targetUserId = user?.id || (userProfile?.email && userProfile.email !== '' ? userProfile.email : 'user@spendwise.app');
+    const resolvedCategoryId = await resolveValidCategoryId(txData.category_id, targetUserId);
     const tempId = `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newTx: Transaction = {
       ...txData,
+      category_id: resolvedCategoryId,
       id: tempId,
       user_id: targetUserId,
       created_at: new Date().toISOString(),
@@ -315,13 +414,13 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     // Optimistic Update
     setTransactions((prev) => [newTx, ...prev]);
 
-    if (isSupabaseLive) {
+    if (isSupabaseLive && targetUserId !== 'demo-user') {
       try {
         const { data, error } = await supabase
           .from('transactions')
           .insert({
             user_id: targetUserId,
-            category_id: txData.category_id || null,
+            category_id: resolvedCategoryId || null,
             trip_id: txData.trip_id || null,
             type: txData.type,
             amount: txData.amount,
@@ -333,7 +432,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (error) {
-          console.warn('Supabase insert transaction error (saved locally):', error.message);
+          console.error('Supabase insert transaction error:', error.message);
         } else if (data) {
           setTransactions((prev) => prev.map((t) => (t.id === tempId ? (data as Transaction) : t)));
           return data as Transaction;
@@ -373,23 +472,24 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
   // 6. Category Actions
   const addCategory = async (catData: Omit<Category, 'id' | 'created_at' | 'user_id' | 'is_default'>): Promise<Category> => {
-    const tempId = `cat-${Date.now()}`;
+    const targetUserId = user?.id || (userProfile?.email && userProfile.email !== '' ? userProfile.email : null);
+    const tempId = `cat-custom-${Date.now()}`;
     const newCat: Category = {
       ...catData,
       id: tempId,
-      user_id: user?.id || null,
+      user_id: targetUserId,
       is_default: false,
       created_at: new Date().toISOString(),
     };
 
-    setCategories((prev) => [...prev, newCat]);
+    setCategories((prev) => deduplicateCategories([...prev, newCat]));
 
-    if (isSupabaseLive && user?.id) {
+    if (isSupabaseLive && targetUserId && targetUserId !== 'demo-user') {
       try {
         const { data, error } = await supabase
           .from('categories')
           .insert({
-            user_id: user.id,
+            user_id: targetUserId,
             name: catData.name,
             type: catData.type,
             icon: catData.icon,
@@ -401,7 +501,7 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
 
         if (error) throw error;
         if (data) {
-          setCategories((prev) => prev.map((c) => (c.id === tempId ? (data as Category) : c)));
+          setCategories((prev) => deduplicateCategories(prev.map((c) => (c.id === tempId ? (data as Category) : c))));
           return data as Category;
         }
       } catch (err) {
@@ -857,9 +957,17 @@ ${transactionRows}
     setIsLoggedIn(false);
     setUser(null);
     setUserProfile(DEFAULT_USER_PROFILE);
+    setTransactions([]);
+    setBudgets([]);
+    setTrips([]);
+    setCategories(DEFAULT_CATEGORIES);
     try {
       localStorage.removeItem('spendwise_is_logged_in');
       localStorage.removeItem('spendwise_user_profile');
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}transactions`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}budgets`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}trips`);
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY_PREFIX}categories`);
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }

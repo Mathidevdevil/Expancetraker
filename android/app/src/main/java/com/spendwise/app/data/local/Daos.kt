@@ -21,8 +21,11 @@ interface CategoryDao {
     @Query("UPDATE categories SET syncStatus = 'PENDING_DELETE' WHERE id = :id")
     suspend fun markForDeletion(id: String)
 
-    @Query("DELETE FROM categories WHERE isDefault = 1 AND id NOT LIKE 'cat-%'")
+    @Query("DELETE FROM categories WHERE (isDefault = 1 AND id NOT LIKE 'cat-%') OR id IN (SELECT c1.id FROM categories c1 JOIN categories c2 ON LOWER(TRIM(c1.name)) = LOWER(TRIM(c2.name)) AND c1.type = c2.type AND c1.id != c2.id WHERE c2.id LIKE 'cat-%' AND c1.id NOT LIKE 'cat-%')")
     suspend fun cleanLegacyCategories()
+
+    @Query("UPDATE budgets SET categoryId = :newId WHERE categoryId = :oldId")
+    suspend fun migrateBudgetCategoryIds(oldId: String, newId: String)
 
     @Query("DELETE FROM categories WHERE id = :id")
     suspend fun deletePermanently(id: String)

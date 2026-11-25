@@ -8,8 +8,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -75,6 +77,7 @@ fun QuickAddBottomSheet(
         } else ""
         mutableStateOf(text)
     }
+    var amountError by remember { mutableStateOf<String?>(null) }
 
     var noteText by remember {
         mutableStateOf(initialTransaction?.note ?: "")
@@ -89,14 +92,33 @@ fun QuickAddBottomSheet(
         categories.filter { it.type == targetType }
     }
 
-    var selectedCategoryId by remember(filteredCategories) {
-        val initialCatId = initialTransaction?.categoryId
-        val defaultId: String? = if (initialCatId != null && filteredCategories.any { it.id == initialCatId }) {
-            initialCatId
-        } else {
-            filteredCategories.firstOrNull()?.id
+    var selectedCategoryId by remember {
+        mutableStateOf<String?>(initialTransaction?.categoryId)
+    }
+    var pendingNewCategoryName by remember { mutableStateOf<String?>(null) }
+
+    // Keep user's selected category stable across list updates; auto-select newly created or default category cleanly
+    LaunchedEffect(filteredCategories, isIncome) {
+        val pendingName = pendingNewCategoryName
+        if (pendingName != null) {
+            val matched = filteredCategories.lastOrNull {
+                it.name.equals(pendingName.trim(), ignoreCase = true)
+            }
+            if (matched != null) {
+                selectedCategoryId = matched.id
+                pendingNewCategoryName = null
+                return@LaunchedEffect
+            }
         }
-        mutableStateOf<String?>(defaultId)
+        val currentValid = selectedCategoryId != null && filteredCategories.any { it.id == selectedCategoryId }
+        if (!currentValid) {
+            val initialCatId = initialTransaction?.categoryId
+            selectedCategoryId = if (initialCatId != null && filteredCategories.any { it.id == initialCatId }) {
+                initialCatId
+            } else {
+                filteredCategories.firstOrNull()?.id
+            }
+        }
     }
 
     var selectedTripId by remember {
@@ -138,8 +160,10 @@ fun QuickAddBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 6.dp)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header: Title & Close
@@ -198,7 +222,21 @@ fun QuickAddBottomSheet(
                     Spacer(modifier = Modifier.width(10.dp))
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = { raw ->
+                            val normalized = raw.replace(',', '.')
+                            val filtered = buildString {
+                                var dotSeen = false
+                                for (ch in normalized) {
+                                    if (ch.isDigit()) append(ch)
+                                    else if (ch == '.' && !dotSeen) {
+                                        dotSeen = true
+                                        append(ch)
+                                    }
+                                }
+                            }
+                            amountText = filtered
+                            if (amountError != null) amountError = null
+                        },
                         placeholder = {
                             Text(
                                 "0",
@@ -224,6 +262,16 @@ fun QuickAddBottomSheet(
                 }
             }
 
+            amountError?.let { err ->
+                Text(
+                    text = err,
+                    color = ExpenseRoseLuminous,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
             // Quick Amount Chips
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -241,7 +289,13 @@ fun QuickAddBottomSheet(
                             .border(1.dp, border, RoundedCornerShape(14.dp))
                             .clickable {
                                 val current = amountText.toDoubleOrNull() ?: 0.0
-                                amountText = (current + value).toLong().toString()
+                                val next = current + value
+                                amountText = if (next % 1.0 == 0.0) {
+                                    next.toLong().toString()
+                                } else {
+                                    String.format(Locale.US, "%.2f", next).trimEnd('0').trimEnd('.')
+                                }
+                                amountError = null
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
                             .padding(vertical = 10.dp),
@@ -574,8 +628,73 @@ fun QuickAddBottomSheet(
                 singleLine = true
             )
 
+            // Optional Trip Tagging (when user has trips)
+            if (trips.isNotEmpty() && !isIncome) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Link to Trip (Optional)",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isDark) TextMutedDark else TextMutedLight
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            val noneSelected = selectedTripId == null
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (noneSelected) (if (isDark) AppleIndigoLight else AppleIndigo) else (if (isDark) GlassFillDark else GlassFillLight),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (noneSelected) SolidColor(if (isDark) AppleIndigoLight else AppleIndigo) else (if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { selectedTripId = null }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = "No Trip",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (noneSelected) Plum900 else if (isDark) TextPrimaryDark else TextPrimaryLight
+                                )
+                            }
+                        }
+                        items(trips, key = { it.id }) { trip ->
+                            val isSelected = selectedTripId == trip.id
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        if (isSelected) (if (isDark) AppleIndigoLight else AppleIndigo) else (if (isDark) GlassFillDark else GlassFillLight),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) SolidColor(if (isDark) AppleIndigoLight else AppleIndigo) else (if (isDark) DarkGlassBorderBrush else LightGlassBorderBrush),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { selectedTripId = if (isSelected) null else trip.id }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = trip.destination,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Plum900 else if (isDark) TextPrimaryDark else TextPrimaryLight
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Submit Button
-            val canSave = (amountText.toDoubleOrNull() ?: 0.0) > 0.0
+            val parsedAmount = amountText.toDoubleOrNull()
+            val canSave = parsedAmount != null && parsedAmount > 0.0
             GlassGradientButton(
                 text = if (initialTransaction != null) {
                     "Save Changes"
@@ -584,12 +703,14 @@ fun QuickAddBottomSheet(
                 },
                 onClick = {
                     val amount = amountText.toDoubleOrNull()
-                    if (amount != null && amount > 0) {
+                    if (amount == null || amount <= 0.0) {
+                        amountError = "Please enter an amount greater than 0."
+                    } else {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onSave(
                             amount,
-                            selectedCategoryId,
-                            selectedTripId,
+                            selectedCategoryId ?: filteredCategories.firstOrNull()?.id,
+                            if (isIncome) null else selectedTripId,
                             selectedPaymentMethod,
                             noteText.takeIf { it.isNotBlank() },
                             selectedDate,
@@ -612,6 +733,7 @@ fun QuickAddBottomSheet(
             isDark = isDark,
             onDismiss = { isAddCategoryDialogOpen = false },
             onSave = { name, icon, color ->
+                pendingNewCategoryName = name
                 onAddCategory?.invoke(name, if (isIncome) "income" else "expense", icon, color)
                 isAddCategoryDialogOpen = false
             }

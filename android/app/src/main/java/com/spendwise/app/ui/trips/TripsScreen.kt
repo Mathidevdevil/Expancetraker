@@ -66,7 +66,7 @@ class TripsViewModel @Inject constructor(
             val tripTxs = txs.filter { it.transaction.tripId == trip.id && it.transaction.type == "expense" }
             val spent = tripTxs.sumOf { it.transaction.amount }
 
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val days = runCatching {
                 val start = sdf.parse(trip.startDate)?.time ?: 0L
                 val end = sdf.parse(trip.endDate)?.time ?: 0L
@@ -88,7 +88,7 @@ class TripsViewModel @Inject constructor(
 
         TripsUiState(
             trips = tripStats,
-            currencySymbol = "₹"
+            currencySymbol = repository.selectedCurrencySymbol
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TripsUiState())
 
@@ -96,12 +96,12 @@ class TripsViewModel @Inject constructor(
         viewModelScope.launch {
             val trip = TripEntity(
                 id = UUID.randomUUID().toString(),
-                userId = "default-user",
-                destination = destination,
+                userId = repository.getEffectiveUserId(),
+                destination = destination.trim(),
                 startDate = startDate,
                 endDate = endDate,
                 budget = budget,
-                notes = notes,
+                notes = notes?.takeIf { it.isNotBlank() },
                 syncStatus = SyncStatus.PENDING_INSERT
             )
             repository.insertTrip(trip)

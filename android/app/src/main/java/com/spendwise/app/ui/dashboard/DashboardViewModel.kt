@@ -176,7 +176,7 @@ class DashboardViewModel @Inject constructor(
         tripId: String?,
         paymentMethod: String,
         note: String?,
-        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()),
+        date: String = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()),
         type: String = "expense"
     ) {
         viewModelScope.launch {
@@ -187,7 +187,8 @@ class DashboardViewModel @Inject constructor(
     fun addCategory(name: String, type: String, icon: String, color: String) {
         viewModelScope.launch {
             val cat = CategoryEntity(
-                name = name,
+                userId = repository.getEffectiveUserId(),
+                name = name.trim(),
                 type = type,
                 icon = icon,
                 color = color,

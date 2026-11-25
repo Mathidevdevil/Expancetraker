@@ -51,7 +51,8 @@ class CategoriesViewModel @Inject constructor(
     fun addCategory(name: String, type: String, icon: String, color: String) {
         viewModelScope.launch {
             val cat = CategoryEntity(
-                name = name,
+                userId = repository.getEffectiveUserId(),
+                name = name.trim(),
                 type = type,
                 icon = icon,
                 color = color,
