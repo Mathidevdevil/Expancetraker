@@ -140,3 +140,92 @@
 .animate-float-subtle {
   animation: float-subtle 6s ease-in-out infinite;
 }
+
+/* =========================================================
+   3D Login Scene Animations & Tactile Controls
+   ========================================================= */
+@keyframes login-card-spring {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 36px, -60px) scale(0.95);
+  }
+  65% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 6px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes coin-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes coin-float-a {
+  0%, 100% {
+    transform: translate3d(0, 0px, 0) rotateY(-18deg) rotateX(14deg) rotateZ(-8deg);
+  }
+  50% {
+    transform: translate3d(0, -14px, 8px) rotateY(16deg) rotateX(-10deg) rotateZ(6deg);
+  }
+}
+
+@keyframes coin-float-b {
+  0%, 100% {
+    transform: translate3d(0, 4px, 0) rotateY(22deg) rotateX(-12deg) rotateZ(10deg);
+  }
+  50% {
+    transform: translate3d(0, -11px, -6px) rotateY(-14deg) rotateX(16deg) rotateZ(-6deg);
+  }
+}
+
+@keyframes coin-float-c {
+  0%, 100% {
+    transform: translate3d(0, -3px, 0) rotateY(-24deg) rotateX(8deg) rotateZ(12deg);
+  }
+  50% {
+    transform: translate3d(0, 12px, 10px) rotateY(18deg) rotateX(-14deg) rotateZ(-10deg);
+  }
+}
+
+.login-card-enter {
+  animation: login-card-spring 500ms cubic-bezier(0.22, 1.25, 0.36, 1) both;
+}
+
+.login-coin-stagger {
+  animation: coin-fade-in 600ms ease-out both;
+}
+
+.login-coin-float-a {
+  animation: coin-float-a 7.5s ease-in-out infinite;
+}
+
+.login-coin-float-b {
+  animation: coin-float-b 9s ease-in-out infinite;
+}
+
+.login-coin-float-c {
+  animation: coin-float-c 6.5s ease-in-out infinite;
+}
+
+.login-3d-paused,
+.login-3d-paused * {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card-enter,
+  .login-coin-stagger,
+  .login-coin-float-a,
+  .login-coin-float-b,
+  .login-coin-float-c {
+    animation: none !important;
+  }
+}

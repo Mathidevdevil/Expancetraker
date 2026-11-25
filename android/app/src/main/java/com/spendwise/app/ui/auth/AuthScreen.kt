@@ -2,8 +2,13 @@ package com.spendwise.app.ui.auth
 
 import android.app.Activity
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,9 +22,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -37,7 +50,7 @@ import androidx.lifecycle.viewModelScope
 import com.spendwise.app.data.remote.SupabaseClientProvider
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.ui.components.glass.GoogleLogoVector
-import com.spendwise.app.ui.components.glass.SpendwiseLogoVector
+import com.spendwise.app.ui.components.glass.Login3DScene
 import com.spendwise.app.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.credentials.CredentialManager
@@ -491,54 +504,11 @@ fun AuthScreen(
         )
     }
 
-    // Full screen background in navy gradient
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        BrandNavyGradientStart,
-                        BrandNavyGradientMid,
-                        BrandNavyGradientEnd
-                    )
-                )
-            )
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding(),
-        contentAlignment = Alignment.Center
+    // Royal Plum 3D Perspective Login Scene
+    Login3DScene(
+        scrollModifier = Modifier.verticalScroll(scrollState)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // One Centered White Card (or Dark Glass Card in dark mode)
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = if (isDark) BrandCardDark else BrandCardLight,
-                border = if (isDark) androidx.compose.foundation.BorderStroke(1.dp, BrandCardBorderDark) else null,
-                shadowElevation = 16.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 440.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 36.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Spendwise 56dp Logo Icon
-                    SpendwiseLogoVector(size = 56.dp)
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Title
+                    // Title (Floating 56dp Spendwise "S" Logo sits centered half above top edge)
                     Text(
                         text = when (authMode) {
                             AuthMode.SIGN_IN -> "Login"
@@ -549,7 +519,7 @@ fun AuthScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 24.sp
                         ),
-                        color = if (isDark) Cream50 else Plum900,
+                        color = Color(0xFFFBF5EA),
                         textAlign = TextAlign.Center
                     )
 
@@ -563,7 +533,7 @@ fun AuthScreen(
                             AuthMode.FORGOT_PASSWORD -> "Enter your email to receive a password reset link."
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                        color = if (isDark) BrandTextMutedDark else BrandTextMutedLight,
+                        color = Color(0xFFC4B8A4),
                         textAlign = TextAlign.Center
                     )
 
@@ -573,8 +543,8 @@ fun AuthScreen(
                     viewModel.successMessage?.let { success ->
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = IncomeEmerald.copy(alpha = 0.15f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, IncomeEmerald.copy(alpha = 0.4f)),
+                            color = IncomeDark.copy(alpha = 0.14f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, IncomeDark.copy(alpha = 0.45f)),
                             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                         ) {
                             Row(
@@ -584,14 +554,14 @@ fun AuthScreen(
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = IncomeEmerald,
+                                    tint = IncomeDark,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = success,
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                    color = IncomeEmerald
+                                    color = IncomeDark
                                 )
                             }
                         }
@@ -707,6 +677,7 @@ fun AuthScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .heightIn(min = 48.dp)
                                 .clickable { showPassword = !showPassword }
                                 .padding(vertical = 2.dp)
                         ) {
@@ -714,9 +685,9 @@ fun AuthScreen(
                                 checked = showPassword,
                                 onCheckedChange = { showPassword = it },
                                 colors = CheckboxDefaults.colors(
-                                    checkedColor = Gold500,
-                                    checkmarkColor = Plum900,
-                                    uncheckedColor = if (isDark) Taupe500 else Taupe300
+                                    checkedColor = Color(0xFFD4AF6A),
+                                    checkmarkColor = Color(0xFF2A0F1A),
+                                    uncheckedColor = Color(0xFFC4B8A4)
                                 )
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -726,12 +697,12 @@ fun AuthScreen(
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 ),
-                                color = if (isDark) Taupe300 else Taupe700
+                                color = Color(0xFFC4B8A4)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Error text above button for wrong credentials or general errors
                     viewModel.errorMessage?.let { error ->
@@ -741,7 +712,7 @@ fun AuthScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
                             ),
-                            color = ExpenseRose,
+                            color = Color(0xFFF1887A),
                             textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -753,8 +724,8 @@ fun AuthScreen(
                     if (viewModel.showEmailConfirmationHelp) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isDark) Color(0x203B82F6) else Color(0x103B82F6),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.4f)),
+                            color = Color(0xB314060C),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD4AF6A).copy(alpha = 0.45f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 14.dp)
@@ -764,7 +735,7 @@ fun AuthScreen(
                                     Icon(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = null,
-                                        tint = Color(0xFF3B82F6),
+                                        tint = Color(0xFFD4AF6A),
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -773,7 +744,7 @@ fun AuthScreen(
                                         fontFamily = SfPro,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+                                        color = Color(0xFFF3DBA0)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -782,14 +753,14 @@ fun AuthScreen(
                                     fontFamily = SfPro,
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp,
-                                    color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
+                                    color = Color(0xFFFBF5EA)
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = { viewModel.continueAsDemo(onAuthSuccess) },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f),
-                                        contentColor = if (isDark) Color.White else Color(0xFF1E40AF)
+                                        containerColor = Color(0xFFD4AF6A).copy(alpha = 0.22f),
+                                        contentColor = Color(0xFFF3DBA0)
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier
@@ -807,40 +778,95 @@ fun AuthScreen(
                         }
                     }
 
-                    // Full-width Primary Button: 52dp tall, Champagne Gold with Navy bold text
-                    Button(
-                        onClick = { handleSubmit() },
-                        enabled = !viewModel.isLoading,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandGold,
-                            contentColor = BrandNavy,
-                            disabledContainerColor = BrandGold.copy(alpha = 0.5f),
-                            disabledContentColor = BrandNavy.copy(alpha = 0.5f)
-                        ),
+                    // Full-width Primary Button: Physical 3D Gold Key (52dp face + 6dp extruded base)
+                    val primaryInteraction = remember { MutableInteractionSource() }
+                    val isPrimaryPressed by primaryInteraction.collectIsPressedAsState()
+                    val primaryPressOffset by animateDpAsState(
+                        targetValue = if (isPrimaryPressed && !viewModel.isLoading) 4.dp else 0.dp,
+                        animationSpec = spring(stiffness = 700f),
+                        label = "GoldKeyPress"
+                    )
+                    val goldKeyShape = RoundedCornerShape(10.dp)
+
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(58.dp)
                     ) {
-                        if (viewModel.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.5.dp,
-                                color = BrandNavy
-                            )
-                        } else {
-                            Text(
-                                text = when (authMode) {
-                                    AuthMode.SIGN_IN -> "SIGN IN"
-                                    AuthMode.SIGN_UP -> "CREATE ACCOUNT"
-                                    AuthMode.FORGOT_PASSWORD -> "SEND RESET LINK"
-                                },
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    letterSpacing = 0.5.sp
+                        // 6dp Extruded Darker Gold Base + Soft Floor Shadow
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .shadow(
+                                    elevation = 10.dp,
+                                    shape = goldKeyShape,
+                                    spotColor = Color(0xCC060103),
+                                    ambientColor = Color(0x80060103)
                                 )
-                            )
+                                .clip(goldKeyShape)
+                                .background(Color(0xFF8A6420))
+                        )
+
+                        // Raised Physical Gold Keycap
+                        Box(
+                            modifier = Modifier
+                                .offset(y = primaryPressOffset)
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .clip(goldKeyShape)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = if (viewModel.isLoading) {
+                                            listOf(
+                                                Color(0xFFF3DBA0).copy(alpha = 0.65f),
+                                                Color(0xFFD4AF6A).copy(alpha = 0.65f),
+                                                Color(0xFFB68A3E).copy(alpha = 0.65f)
+                                            )
+                                        } else {
+                                            listOf(
+                                                Color(0xFFF3DBA0),
+                                                Color(0xFFD4AF6A),
+                                                Color(0xFFB68A3E)
+                                            )
+                                        }
+                                    )
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color(0xFFF3DBA0).copy(alpha = 0.85f),
+                                    shape = goldKeyShape
+                                )
+                                .clickable(
+                                    interactionSource = primaryInteraction,
+                                    indication = null,
+                                    enabled = !viewModel.isLoading,
+                                    onClick = { handleSubmit() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (viewModel.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = Color(0xFF2A0F1A)
+                                )
+                            } else {
+                                Text(
+                                    text = when (authMode) {
+                                        AuthMode.SIGN_IN -> "SIGN IN"
+                                        AuthMode.SIGN_UP -> "CREATE ACCOUNT"
+                                        AuthMode.FORGOT_PASSWORD -> "SEND RESET LINK"
+                                    },
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        letterSpacing = 0.6.sp
+                                    ),
+                                    color = Color(0xFF2A0F1A)
+                                )
+                            }
                         }
                     }
 
@@ -854,7 +880,7 @@ fun AuthScreen(
                         ) {
                             HorizontalDivider(
                                 modifier = Modifier.weight(1f),
-                                color = if (isDark) Taupe900 else Taupe100
+                                color = Color(0xFFD4AF6A).copy(alpha = 0.25f)
                             )
                             Text(
                                 text = "  OR  ",
@@ -862,50 +888,78 @@ fun AuthScreen(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
                                 ),
-                                color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                color = Color(0xFFC4B8A4)
                             )
                             HorizontalDivider(
                                 modifier = Modifier.weight(1f),
-                                color = if (isDark) Taupe900 else Taupe100
+                                color = Color(0xFFD4AF6A).copy(alpha = 0.25f)
                             )
                         }
 
-                        // Full-width "Continue with Google" Button
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isDark) Plum900.copy(alpha = 0.6f) else Color.White,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isDark) Gold500.copy(alpha = 0.35f) else Taupe300
-                            ),
+                        // Full-width "Continue with Google" Translucent Plum Glass Key with Gold Outline
+                        val googleInteraction = remember { MutableInteractionSource() }
+                        val isGooglePressed by googleInteraction.collectIsPressedAsState()
+                        val googlePressOffset by animateDpAsState(
+                            targetValue = if (isGooglePressed) 3.dp else 0.dp,
+                            animationSpec = spring(stiffness = 700f),
+                            label = "GoogleKeyPress"
+                        )
+                        val googleShape = RoundedCornerShape(10.dp)
+
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    val act = context as? Activity
-                                    if (act != null) {
-                                        viewModel.signInWithGoogle(act, onAuthSuccess)
-                                    } else {
-                                        viewModel.continueAsDemo(onAuthSuccess)
-                                    }
-                                }
+                                .height(55.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clip(googleShape)
+                                    .background(Color(0xFF100409))
+                            )
+
+                            Surface(
+                                shape = googleShape,
+                                color = Color(0xBF2A0F1A),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.5.dp,
+                                    Color(0xFFD4AF6A).copy(alpha = 0.65f)
+                                ),
+                                modifier = Modifier
+                                    .offset(y = googlePressOffset)
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clickable(
+                                        interactionSource = googleInteraction,
+                                        indication = null
+                                    ) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        val act = context as? Activity
+                                        if (act != null) {
+                                            viewModel.signInWithGoogle(act, onAuthSuccess)
+                                        } else {
+                                            viewModel.continueAsDemo(onAuthSuccess)
+                                        }
+                                    }
                             ) {
-                                GoogleLogoVector(size = 20.dp)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "Continue with Google",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 15.sp
-                                    ),
-                                    color = if (isDark) Cream50 else Plum900
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    GoogleLogoVector(size = 20.dp)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Continue with Google",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp
+                                        ),
+                                        color = Color(0xFFFBF5EA)
+                                    )
+                                }
                             }
                         }
                     }
@@ -922,16 +976,14 @@ fun AuthScreen(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 13.sp
                                 ),
-                                color = BrandGold,
+                                color = Color(0xFFD4AF6A),
                                 modifier = Modifier
                                     .clickable {
                                         viewModel.authMode = AuthMode.FORGOT_PASSWORD
                                         viewModel.resetMessages()
                                     }
-                                    .padding(vertical = 4.dp)
+                                    .padding(vertical = 8.dp, horizontal = 12.dp)
                             )
-
-                            Spacer(modifier = Modifier.height(6.dp))
 
                             // Line 2: Don't have an account? Sign up
                             Row(
@@ -942,7 +994,7 @@ fun AuthScreen(
                                 Text(
                                     text = "Don't have an account? ",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                    color = Color(0xFFC4B8A4)
                                 )
                                 Text(
                                     text = "Sign up",
@@ -950,13 +1002,13 @@ fun AuthScreen(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     ),
-                                    color = BrandGold,
+                                    color = Color(0xFFD4AF6A),
                                     modifier = Modifier
                                         .clickable {
                                             viewModel.authMode = AuthMode.SIGN_UP
                                             viewModel.resetMessages()
                                         }
-                                        .padding(vertical = 4.dp)
+                                        .padding(vertical = 8.dp, horizontal = 4.dp)
                                 )
                             }
                         }
@@ -969,7 +1021,7 @@ fun AuthScreen(
                                 Text(
                                     text = "Already have an account? ",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                    color = Color(0xFFC4B8A4)
                                 )
                                 Text(
                                     text = "Sign in",
@@ -977,13 +1029,13 @@ fun AuthScreen(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     ),
-                                    color = BrandGold,
+                                    color = Color(0xFFD4AF6A),
                                     modifier = Modifier
                                         .clickable {
                                             viewModel.authMode = AuthMode.SIGN_IN
                                             viewModel.resetMessages()
                                         }
-                                        .padding(vertical = 4.dp)
+                                        .padding(vertical = 8.dp, horizontal = 4.dp)
                                 )
                             }
                         }
@@ -996,7 +1048,7 @@ fun AuthScreen(
                                 Text(
                                     text = "Remember your password? ",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                    color = if (isDark) BrandTextMutedDark else BrandTextMutedLight
+                                    color = Color(0xFFC4B8A4)
                                 )
                                 Text(
                                     text = "Back to Login",
@@ -1004,38 +1056,35 @@ fun AuthScreen(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp
                                     ),
-                                    color = BrandGold,
+                                    color = Color(0xFFD4AF6A),
                                     modifier = Modifier
                                         .clickable {
                                             viewModel.authMode = AuthMode.SIGN_IN
                                             viewModel.resetMessages()
                                         }
-                                        .padding(vertical = 4.dp)
+                                        .padding(vertical = 8.dp, horizontal = 4.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Demo / Offline Mode Action (discrete test link)
+                    // Demo / Offline Mode Action (discrete test link, WCAG AA on plum glass)
                     Text(
                         text = "Continue as Demo (Offline Mode)",
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Medium,
                             fontSize = 12.sp
                         ),
-                        color = if (isDark) Color(0xFF64748B) else Color(0xFF94A3B8),
+                        color = Color(0xFFC4B8A4),
                         modifier = Modifier
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 viewModel.continueAsDemo(onAuthSuccess)
                             }
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 10.dp, horizontal = 12.dp)
                     )
-                }
-            }
-        }
     }
 }
 
@@ -1058,6 +1107,9 @@ private fun SpendwiseLabeledField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val fieldShape = RoundedCornerShape(10.dp)
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
@@ -1065,48 +1117,84 @@ private fun SpendwiseLabeledField(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             ),
-            color = if (isDark) Cream50 else Plum900
+            color = Color(0xFFFBF5EA)
         )
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = {
-                Text(
-                    text = placeholder,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                    color = if (isDark) Taupe300 else Taupe700
-                )
-            },
-            visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
-            singleLine = true,
-            isError = isError,
-            keyboardOptions = keyboardOptions,
-            keyboardActions = keyboardActions,
-            shape = RoundedCornerShape(10.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = if (isDark) BrandInputBgDark else BrandInputBgLight,
-                unfocusedContainerColor = if (isDark) BrandInputBgDark else BrandInputBgLight,
-                focusedBorderColor = BrandGold,
-                unfocusedBorderColor = if (isDark) BrandInputBorderDark else BrandInputBorderLight,
-                focusedTextColor = if (isDark) Cream50 else Plum900,
-                unfocusedTextColor = if (isDark) Cream50 else Plum900,
-                cursorColor = BrandGold,
-                errorBorderColor = ExpenseRose
-            ),
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 52.dp)
-        )
+                .then(
+                    if (isFocused && !isError) {
+                        Modifier.border(
+                            width = 2.dp,
+                            color = Color(0xFFD4AF6A).copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(11.dp)
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        color = Color(0xFFC4B8A4).copy(alpha = 0.78f)
+                    )
+                },
+                visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
+                singleLine = true,
+                isError = isError,
+                keyboardOptions = keyboardOptions,
+                keyboardActions = keyboardActions,
+                shape = fieldShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xEB14060C),
+                    unfocusedContainerColor = Color(0xEB14060C),
+                    errorContainerColor = Color(0xEB14060C),
+                    focusedBorderColor = Color(0xFFD4AF6A),
+                    unfocusedBorderColor = Color(0xFF8F8272).copy(alpha = 0.55f),
+                    focusedTextColor = Color(0xFFFBF5EA),
+                    unfocusedTextColor = Color(0xFFFBF5EA),
+                    cursorColor = Color(0xFFD4AF6A),
+                    errorBorderColor = Color(0xFFF1887A)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 52.dp)
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .drawWithContent {
+                        drawContent()
+                        // Subtle recessed inset top shadow inside the field
+                        val r = 10.dp.toPx()
+                        drawLine(
+                            color = Color(0xAA050103),
+                            start = Offset(r, 2.dp.toPx()),
+                            end = Offset(size.width - r, 2.dp.toPx()),
+                            strokeWidth = 2.5.dp.toPx()
+                        )
+                        drawRoundRect(
+                            color = Color(0x28050103),
+                            topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
+                            size = Size(size.width - 2.dp.toPx(), size.height - 2.dp.toPx()),
+                            cornerRadius = CornerRadius(r, r),
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
+            )
+        }
 
         if (isError && !errorMessage.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = ExpenseRose
+                color = Color(0xFFF1887A)
             )
         }
     }
