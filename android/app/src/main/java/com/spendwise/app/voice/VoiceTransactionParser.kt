@@ -560,10 +560,20 @@ object VoiceTransactionParser {
                     VoiceSpeechErrorType.RECOGNIZER_BUSY,
                     "Speech recognizer is busy. Please wait a moment and try again."
                 )
+            12 /* ERROR_LANGUAGE_NOT_SUPPORTED */, 13 /* ERROR_LANGUAGE_UNAVAILABLE */ ->
+                VoiceSpeechError(
+                    VoiceSpeechErrorType.UNAVAILABLE,
+                    "Selected speech language is unavailable for inline recognition. Try system voice input or enter manually."
+                )
+            3 /* ERROR_AUDIO */, 4 /* ERROR_SERVER */, 5 /* ERROR_CLIENT */, 10 /* ERROR_SERVER_DISCONNECTED */ ->
+                VoiceSpeechError(
+                    VoiceSpeechErrorType.UNAVAILABLE,
+                    "Voice service could not connect (code $errorCode). Try system voice input or enter manually."
+                )
             else ->
                 VoiceSpeechError(
                     VoiceSpeechErrorType.UNKNOWN,
-                    "Could not process voice input. Please try again or enter manually."
+                    "Could not process voice input (code $errorCode). Please try again or enter manually."
                 )
         }
     }

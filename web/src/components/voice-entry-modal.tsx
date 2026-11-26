@@ -160,6 +160,10 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const finalHandledRef = useRef(false);
   const latestTranscriptRef = useRef('');
+  const categoriesRef = useRef(categories);
+  const voiceLanguageRef = useRef(voiceLanguage);
+  categoriesRef.current = categories;
+  voiceLanguageRef.current = voiceLanguage;
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const yesterdayStr = useMemo(() => {
@@ -175,29 +179,26 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
     recognitionRef.current = null;
   }, []);
 
-  const processTranscript = useCallback(
-    async (transcript: string) => {
-      const clean = transcript.trim();
-      if (!clean) return;
-      finalHandledRef.current = true;
-      setRawTranscript(clean);
-      setStage('parsing');
+  const processTranscript = useCallback(async (transcript: string) => {
+    const clean = transcript.trim();
+    if (!clean) return;
+    finalHandledRef.current = true;
+    setRawTranscript(clean);
+    setStage('parsing');
 
-      const parsed = await parseVoiceTranscriptWithSmartFallback(clean, categories);
-      setTxType(parsed.type);
-      setAmountInput(parsed.amount && parsed.amount > 0 ? String(parsed.amount) : '');
-      setEditingAmount(!parsed.amount || parsed.amount <= 0);
-      setCategoryId(parsed.categoryId || '');
-      setEditingCategory(false);
-      setDate(parsed.date);
-      setPaymentMethod(parsed.paymentMethod);
-      setNote(parsed.note);
-      setEditingNote(false);
-      setUsedSmartParser(Boolean(parsed.usedSmartParser));
-      setStage('confirmation');
-    },
-    [categories]
-  );
+    const parsed = await parseVoiceTranscriptWithSmartFallback(clean, categoriesRef.current);
+    setTxType(parsed.type);
+    setAmountInput(parsed.amount && parsed.amount > 0 ? String(parsed.amount) : '');
+    setEditingAmount(!parsed.amount || parsed.amount <= 0);
+    setCategoryId(parsed.categoryId || '');
+    setEditingCategory(false);
+    setDate(parsed.date);
+    setPaymentMethod(parsed.paymentMethod);
+    setNote(parsed.note);
+    setEditingNote(false);
+    setUsedSmartParser(Boolean(parsed.usedSmartParser));
+    setStage('confirmation');
+  }, []);
 
   const startListening = useCallback(() => {
     stopRecognition();
@@ -218,7 +219,7 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
 
     setStage('listening');
     const recognition = new Ctor();
-    recognition.lang = voiceLanguage;
+    recognition.lang = voiceLanguageRef.current;
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
@@ -247,6 +248,12 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
 
     recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
       if (finalHandledRef.current) return;
+      const captured = latestTranscriptRef.current.trim();
+      if (captured && (event.error === 'no-speech' || event.error === 'aborted')) {
+        stopRecognition();
+        void processTranscript(captured);
+        return;
+      }
       stopRecognition();
       setErrorInfo(mapWebSpeechError(event.error));
       setStage('error');
@@ -274,7 +281,7 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
       setErrorInfo(mapWebSpeechError('unknown'));
       setStage('error');
     }
-  }, [processTranscript, stopRecognition, voiceLanguage]);
+  }, [processTranscript, stopRecognition]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -396,7 +403,18 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
               >
                 Cancel
               </button>
-              {onSwitchToManual ? (
+              {partialText.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopRecognition();
+                    void processTranscript(partialText.trim());
+                  }}
+                  className="min-h-[44px] px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#F3DBA0] via-[#D4AF6A] to-[#8A6420] text-[#2A0F1A] text-sm font-bold"
+                >
+                  Done speaking
+                </button>
+              ) : onSwitchToManual ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -413,14 +431,12 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
                 <button
                   type="button"
                   onClick={() => {
-                    if (partialText.trim()) {
-                      stopRecognition();
-                      void processTranscript(partialText.trim());
-                    }
+                    stopRecognition();
+                    onClose();
                   }}
-                  className="min-h-[44px] px-4 py-2.5 rounded-2xl bg-gradient-to-b from-[#F3DBA0] via-[#D4AF6A] to-[#8A6420] text-[#2A0F1A] text-sm font-bold"
+                  className="min-h-[44px] px-4 py-2.5 rounded-2xl border border-[#D4AF6A]/35 bg-[#2A0F1A]/80 text-sm font-semibold text-[#F3DBA0]"
                 >
-                  Done speaking
+                  Close
                 </button>
               )}
             </div>

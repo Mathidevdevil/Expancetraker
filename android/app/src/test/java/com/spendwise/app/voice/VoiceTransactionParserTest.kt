@@ -125,5 +125,11 @@ class VoiceTransactionParserTest {
 
         val net = VoiceTransactionParser.mapAndroidSpeechError(2)
         assertEquals(VoiceSpeechErrorType.NO_NETWORK, net.type)
+
+        val langUnavailable = VoiceTransactionParser.mapAndroidSpeechError(12)
+        assertEquals(VoiceSpeechErrorType.UNAVAILABLE, langUnavailable.type)
+
+        val clientErr = VoiceTransactionParser.mapAndroidSpeechError(5)
+        assertEquals(VoiceSpeechErrorType.UNAVAILABLE, clientErr.type)
     }
 }

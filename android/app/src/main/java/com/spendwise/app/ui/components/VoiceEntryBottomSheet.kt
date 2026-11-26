@@ -1,8 +1,13 @@
 package com.spendwise.app.ui.components
 
 import android.Manifest
+import android.app.Activity
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
@@ -110,13 +115,14 @@ fun VoiceEntryBottomSheet(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
 
     val speechManager = remember(context) { VoiceSpeechManager(context) }
     val speechState by speechManager.state.collectAsState()
 
     var stage by remember { mutableStateOf(VoiceSheetStage.LISTENING) }
     var activeError by remember { mutableStateOf<VoiceSpeechError?>(null) }
+    var triedSystemFallback by remember { mutableStateOf(false) }
 
     // Editable Confirmation Card states
     var selectedType by remember { mutableStateOf<String?>(null) }
@@ -139,6 +145,66 @@ fun VoiceEntryBottomSheet(
     val yesterdayStr = remember {
         Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }.let {
             dateFormatter.format(it.time)
+        }
+    }
+
+    fun applyParsedResult(transcript: String, parsed: ParsedVoiceTransaction) {
+        rawTranscript = transcript
+        selectedType = parsed.type
+        amountText = if (parsed.amount != null && parsed.amount > 0.0) {
+            if (parsed.amount % 1.0 == 0.0) parsed.amount.toLong().toString()
+            else parsed.amount.toString()
+        } else {
+            ""
+        }
+        isEditingAmount = parsed.amount == null || parsed.amount <= 0.0
+        selectedCategoryId = parsed.categoryId
+        selectedDate = parsed.date
+        selectedPaymentMethod = parsed.paymentMethod
+        noteText = parsed.note
+        usedSmartParser = parsed.usedSmartParser
+        stage = VoiceSheetStage.CONFIRMATION
+    }
+
+    val systemSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val transcript = matches?.firstOrNull()?.trim().orEmpty()
+            if (transcript.isNotBlank()) {
+                stage = VoiceSheetStage.PARSING
+                coroutineScope.launch {
+                    val parsed = onParseTranscript(transcript)
+                    applyParsedResult(transcript, parsed)
+                }
+                return@rememberLauncherForActivityResult
+            }
+        }
+        activeError = VoiceSpeechError(
+            type = VoiceSpeechErrorType.NO_SPEECH,
+            message = "No speech captured. Try speaking again or enter manually."
+        )
+        stage = VoiceSheetStage.ERROR
+    }
+
+    fun launchSystemSpeechPrompt() {
+        triedSystemFallback = true
+        speechManager.cancelListening()
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, voiceLanguage)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, voiceLanguage)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your expense or income")
+        }
+        runCatching {
+            systemSpeechLauncher.launch(intent)
+        }.onFailure {
+            activeError = VoiceSpeechError(
+                type = VoiceSpeechErrorType.UNAVAILABLE,
+                message = "No Google or system speech app is installed on this device. Please enter manually."
+            )
+            stage = VoiceSheetStage.ERROR
         }
     }
 
@@ -193,29 +259,20 @@ fun VoiceEntryBottomSheet(
             rawTranscript = transcript
             stage = VoiceSheetStage.PARSING
             val parsed = onParseTranscript(transcript)
-            selectedType = parsed.type
-            amountText = if (parsed.amount != null && parsed.amount > 0.0) {
-                if (parsed.amount % 1.0 == 0.0) parsed.amount.toLong().toString()
-                else parsed.amount.toString()
-            } else {
-                ""
-            }
-            isEditingAmount = parsed.amount == null || parsed.amount <= 0.0
-            selectedCategoryId = parsed.categoryId
-            selectedDate = parsed.date
-            selectedPaymentMethod = parsed.paymentMethod
-            noteText = parsed.note
-            usedSmartParser = parsed.usedSmartParser
-            stage = VoiceSheetStage.CONFIRMATION
+            applyParsedResult(transcript, parsed)
         }
     }
 
-    // Handle SpeechRecognizer errors
+    // Handle SpeechRecognizer errors (auto-fallback to System Speech Prompt once if UNAVAILABLE)
     LaunchedEffect(speechState.error) {
         val err = speechState.error ?: return@LaunchedEffect
         if (stage == VoiceSheetStage.LISTENING) {
-            activeError = err
-            stage = VoiceSheetStage.ERROR
+            if (err.type == VoiceSpeechErrorType.UNAVAILABLE && !triedSystemFallback) {
+                launchSystemSpeechPrompt()
+            } else {
+                activeError = err
+                stage = VoiceSheetStage.ERROR
+            }
         }
     }
 
@@ -312,6 +369,12 @@ fun VoiceEntryBottomSheet(
                             speechManager.cancelListening()
                             onDismiss()
                         },
+                        onDone = {
+                            speechManager.finishListening()
+                        },
+                        onUseSystemMic = {
+                            launchSystemSpeechPrompt()
+                        },
                         onEnterManually = {
                             speechManager.cancelListening()
                             onSwitchToManual()
@@ -395,6 +458,29 @@ fun VoiceEntryBottomSheet(
                                     isDark = isDark,
                                     modifier = Modifier.weight(1f)
                                 )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (err.type == VoiceSpeechErrorType.PERMISSION_DENIED) {
+                                    TextButton(onClick = {
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                    data = Uri.fromParts("package", context.packageName, null)
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                }
+                                            )
+                                        }
+                                    }) {
+                                        Text("Open App Settings", color = Gold500, fontWeight = FontWeight.SemiBold)
+                                    }
+                                } else {
+                                    TextButton(onClick = { launchSystemSpeechPrompt() }) {
+                                        Text("Use System Voice Dialog", color = Gold500, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -897,6 +983,8 @@ private fun ListeningContent(
     primaryText: Color,
     secondaryText: Color,
     onCancel: () -> Unit,
+    onDone: () -> Unit,
+    onUseSystemMic: () -> Unit,
     onEnterManually: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "voice_pulse")
@@ -994,12 +1082,43 @@ private fun ListeningContent(
                     isDark = isDark,
                     modifier = Modifier.weight(1f)
                 )
-                GlassSecondaryButton(
-                    text = "Type Manually",
-                    onClick = onEnterManually,
-                    isDark = isDark,
-                    modifier = Modifier.weight(1f)
-                )
+                if (partialText.isNotBlank()) {
+                    GlassGradientButton(
+                        text = "Done",
+                        onClick = onDone,
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    GlassSecondaryButton(
+                        text = "Type Manually",
+                        onClick = onEnterManually,
+                        isDark = isDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onUseSystemMic) {
+                    Text(
+                        text = "Use System Mic",
+                        fontSize = 12.sp,
+                        color = Gold500,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                TextButton(onClick = onEnterManually) {
+                    Text(
+                        text = "Enter manually",
+                        fontSize = 12.sp,
+                        color = secondaryText
+                    )
+                }
             }
         }
     }

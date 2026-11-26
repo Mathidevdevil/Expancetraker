@@ -468,6 +468,11 @@ export function mapWebSpeechError(code: string): { kind: VoiceErrorKind; message
         kind: 'no-speech',
         message: 'No speech detected. Try speaking again or enter the transaction manually.',
       };
+    case 'audio-capture':
+      return {
+        kind: 'permission-denied',
+        message: 'No microphone was found or it is being used by another app. Check mic settings or enter manually.',
+      };
     case 'network':
       return {
         kind: 'network',

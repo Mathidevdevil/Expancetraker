@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -21,19 +23,35 @@ data class VoiceSpeechState(
 )
 
 /**
- * Wraps Android SpeechRecognizer cleanly without storing any audio recordings.
- * Prefers on-device recognition on Android 13+ (API 33) when available, falling back
- * to the platform default SpeechRecognizer otherwise.
+ * Wraps Android SpeechRecognizer on the main thread without storing any audio recordings.
+ * Strategy:
+ * 1. On Android 13+, tries on-device SpeechRecognizer first when available.
+ * 2. If on-device fails due to missing offline language packs or service errors,
+ *    automatically falls back to the platform default SpeechRecognizer.
+ * 3. Promotes captured partial results instead of discarding them on timeout/no-match.
  */
 class VoiceSpeechManager(private val context: Context) {
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
+    private var activeLanguageTag: String = "en-IN"
+    private var allowOnDeviceAttempt: Boolean = true
+    private var hasRetriedStandardForSession: Boolean = false
+    private var sessionToken: Int = 0
 
     private val _state = MutableStateFlow(VoiceSpeechState())
     val state: StateFlow<VoiceSpeechState> = _state.asStateFlow()
 
-    private fun createRecognizer(): Pair<SpeechRecognizer?, Boolean> {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    private fun runOnMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            mainHandler.post(block)
+        }
+    }
+
+    private fun createRecognizer(preferOnDevice: Boolean): Pair<SpeechRecognizer?, Boolean> {
+        if (preferOnDevice && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val onDeviceAvailable = runCatching {
                 SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
             }.getOrDefault(false)
@@ -59,15 +77,26 @@ class VoiceSpeechManager(private val context: Context) {
     }
 
     fun startListening(languageTag: String) {
-        stopAndReleaseRecognizer()
+        runOnMain {
+            activeLanguageTag = languageTag
+            allowOnDeviceAttempt = true
+            hasRetriedStandardForSession = false
+            startInternal(languageTag = languageTag, preferOnDevice = true)
+        }
+    }
 
-        val (recognizer, onDevice) = createRecognizer()
+    private fun startInternal(languageTag: String, preferOnDevice: Boolean) {
+        stopAndReleaseRecognizerInternal()
+        sessionToken += 1
+        val currentToken = sessionToken
+
+        val (recognizer, onDevice) = createRecognizer(preferOnDevice)
         if (recognizer == null) {
             _state.value = VoiceSpeechState(
                 isListening = false,
                 error = VoiceSpeechError(
                     type = VoiceSpeechErrorType.UNAVAILABLE,
-                    message = "Speech recognition service is not available on this device. Please enter manually."
+                    message = "Inline speech service is unavailable on this device."
                 )
             )
             return
@@ -85,12 +114,14 @@ class VoiceSpeechManager(private val context: Context) {
 
         recognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
+                if (currentToken != sessionToken) return
                 _state.value = _state.value.copy(isListening = true, error = null)
             }
 
             override fun onBeginningOfSpeech() {}
 
             override fun onRmsChanged(rmsdB: Float) {
+                if (currentToken != sessionToken) return
                 _state.value = _state.value.copy(rmsDb = rmsdB.coerceIn(0f, 12f))
             }
 
@@ -99,10 +130,35 @@ class VoiceSpeechManager(private val context: Context) {
             }
 
             override fun onEndOfSpeech() {
+                if (currentToken != sessionToken) return
                 _state.value = _state.value.copy(isListening = false)
             }
 
             override fun onError(error: Int) {
+                if (currentToken != sessionToken) return
+
+                // If partial words were already captured and recognizer timed out / ended, keep them!
+                val capturedPartial = _state.value.partialText.trim()
+                if (capturedPartial.isNotEmpty() && (error == 6 || error == 7 || error == 5)) {
+                    stopAndReleaseRecognizerInternal()
+                    _state.value = _state.value.copy(
+                        isListening = false,
+                        finalTranscript = capturedPartial,
+                        error = null
+                    )
+                    return
+                }
+
+                // Automatic silent fallback from on-device SpeechRecognizer to default SpeechRecognizer
+                // when the offline pack / language is unavailable or on-device service fails.
+                if (onDevice && !hasRetriedStandardForSession && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                    hasRetriedStandardForSession = true
+                    allowOnDeviceAttempt = false
+                    startInternal(languageTag = activeLanguageTag, preferOnDevice = false)
+                    return
+                }
+
+                stopAndReleaseRecognizerInternal()
                 val mapped = VoiceTransactionParser.mapAndroidSpeechError(error)
                 _state.value = _state.value.copy(
                     isListening = false,
@@ -111,8 +167,12 @@ class VoiceSpeechManager(private val context: Context) {
             }
 
             override fun onResults(results: Bundle?) {
+                if (currentToken != sessionToken) return
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val best = matches?.firstOrNull()?.trim().orEmpty()
+                    .ifBlank { _state.value.partialText.trim() }
+
+                stopAndReleaseRecognizerInternal()
                 if (best.isBlank()) {
                     _state.value = _state.value.copy(
                         isListening = false,
@@ -129,6 +189,7 @@ class VoiceSpeechManager(private val context: Context) {
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
+                if (currentToken != sessionToken) return
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val partial = matches?.firstOrNull()?.trim().orEmpty()
                 if (partial.isNotBlank()) {
@@ -145,40 +206,73 @@ class VoiceSpeechManager(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         }
 
         runCatching {
             recognizer.startListening(intent)
         }.onFailure {
-            _state.value = _state.value.copy(
-                isListening = false,
-                error = VoiceSpeechError(
-                    type = VoiceSpeechErrorType.UNKNOWN,
-                    message = "Could not start speech recognizer. Please enter manually."
+            if (onDevice && !hasRetriedStandardForSession) {
+                hasRetriedStandardForSession = true
+                startInternal(languageTag = activeLanguageTag, preferOnDevice = false)
+            } else {
+                stopAndReleaseRecognizerInternal()
+                _state.value = _state.value.copy(
+                    isListening = false,
+                    error = VoiceSpeechError(
+                        type = VoiceSpeechErrorType.UNAVAILABLE,
+                        message = "Could not start inline speech recognizer. Try system voice input."
+                    )
                 )
-            )
+            }
+        }
+    }
+
+    fun finishListening() {
+        runOnMain {
+            val captured = _state.value.partialText.trim()
+            if (captured.isNotEmpty()) {
+                sessionToken += 1
+                runCatching { speechRecognizer?.cancel() }
+                stopAndReleaseRecognizerInternal()
+                _state.value = _state.value.copy(
+                    isListening = false,
+                    finalTranscript = captured,
+                    error = null
+                )
+            } else {
+                runCatching { speechRecognizer?.stopListening() }
+            }
         }
     }
 
     fun cancelListening() {
-        runCatching { speechRecognizer?.cancel() }
-        stopAndReleaseRecognizer()
-        _state.value = _state.value.copy(isListening = false)
+        runOnMain {
+            sessionToken += 1
+            runCatching { speechRecognizer?.cancel() }
+            stopAndReleaseRecognizerInternal()
+            _state.value = _state.value.copy(isListening = false)
+        }
     }
 
     fun setPermissionDeniedError() {
-        stopAndReleaseRecognizer()
-        _state.value = VoiceSpeechState(
-            isListening = false,
-            error = VoiceTransactionParser.mapAndroidSpeechError(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
-        )
+        runOnMain {
+            sessionToken += 1
+            stopAndReleaseRecognizerInternal()
+            _state.value = VoiceSpeechState(
+                isListening = false,
+                error = VoiceTransactionParser.mapAndroidSpeechError(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+            )
+        }
     }
 
     fun clearErrorAndTranscript() {
-        _state.value = VoiceSpeechState()
+        runOnMain {
+            _state.value = VoiceSpeechState()
+        }
     }
 
-    private fun stopAndReleaseRecognizer() {
+    private fun stopAndReleaseRecognizerInternal() {
         runCatching {
             speechRecognizer?.destroy()
         }
@@ -186,6 +280,9 @@ class VoiceSpeechManager(private val context: Context) {
     }
 
     fun destroy() {
-        stopAndReleaseRecognizer()
+        runOnMain {
+            sessionToken += 1
+            stopAndReleaseRecognizerInternal()
+        }
     }
 }
