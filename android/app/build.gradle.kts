@@ -14,8 +14,8 @@ android {
         applicationId = "com.spendwise.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.0.9"
+        versionCode = 11
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -120,6 +120,9 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Unit Testing
+    testImplementation("junit:junit:4.13.2")
 
     // Debugging
     debugImplementation("androidx.compose.ui:ui-tooling")

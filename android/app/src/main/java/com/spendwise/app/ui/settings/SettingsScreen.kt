@@ -54,6 +54,7 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     val userProfile: StateFlow<UserProfile> = repository.userProfile
     val themeMode: StateFlow<String> = repository.themeMode
+    val voiceLanguage: StateFlow<String> = repository.voiceLanguage
 
     var selectedCurrency by mutableStateOf(repository.selectedCurrency)
         private set
@@ -78,6 +79,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: String) {
         repository.setThemeMode(mode)
+    }
+
+    fun setVoiceLanguage(languageTag: String) {
+        repository.setVoiceLanguage(languageTag)
     }
 
     fun updateProfile(name: String, email: String, initials: String? = null) {
@@ -131,6 +136,7 @@ fun SettingsScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val currentThemeMode by viewModel.themeMode.collectAsState()
+    val voiceLanguage by viewModel.voiceLanguage.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val updateStatusMessage by viewModel.updateCheckStatusMessage.collectAsState()
     val availableUpdate by viewModel.availableUpdate.collectAsState()
@@ -517,6 +523,97 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+        }
+
+        // Voice Entry Language & Privacy Card
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Gold500.copy(alpha = 0.18f),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.Mic,
+                                contentDescription = null,
+                                tint = Gold500,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Voice Entry Language",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = if (voiceLanguage == "ta-IN") "Tamil (ta-IN)" else "English (India) (en-IN)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    listOf(
+                        "en-IN" to "English (India)",
+                        "ta-IN" to "Tamil (ta-IN)"
+                    ).forEach { (tag, label) ->
+                        val isSelected = voiceLanguage == tag
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Gold500 else Color.Transparent,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) Gold500 else MaterialTheme.colorScheme.outline
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    viewModel.setVoiceLanguage(tag)
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Plum900 else MaterialTheme.colorScheme.onBackground,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Privacy: Speech recognition may be processed by Google when on-device recognition is unavailable. Audio is never recorded or stored — only your confirmed transaction is saved.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 

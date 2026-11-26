@@ -4,10 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.spendwise.app.data.model.*
 import com.spendwise.app.data.remote.AppUpdateInfo
+import com.spendwise.app.data.remote.SupabaseClientProvider
 import com.spendwise.app.data.remote.UpdateDownloadState
 import com.spendwise.app.data.remote.UpdateManager
 import com.spendwise.app.data.repository.FinanceRepository
 import com.spendwise.app.data.repository.UserProfile
+import com.spendwise.app.voice.ParsedVoiceTransaction
+import com.spendwise.app.voice.VoiceTransactionParser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -44,7 +47,8 @@ data class DashboardUiState(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val repository: FinanceRepository,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val supabaseProvider: SupabaseClientProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -154,6 +158,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     val themeMode: StateFlow<String> = repository.themeMode
+    val voiceLanguage: StateFlow<String> = repository.voiceLanguage
 
     val isLoggedIn: Boolean
         get() = repository.isLoggedIn
@@ -164,6 +169,19 @@ class DashboardViewModel @Inject constructor(
 
     fun setThemeMode(mode: String) {
         repository.setThemeMode(mode)
+    }
+
+    fun setVoiceLanguage(languageTag: String) {
+        repository.setVoiceLanguage(languageTag)
+    }
+
+    suspend fun parseVoiceTranscript(transcript: String): ParsedVoiceTransaction {
+        return VoiceTransactionParser.parseWithOptionalSmartFallback(
+            transcript = transcript,
+            categories = _uiState.value.categories,
+            supabaseUrl = supabaseProvider.supabaseUrl,
+            supabaseKey = supabaseProvider.supabaseKey
+        )
     }
 
     fun updateProfile(name: String, email: String, initials: String? = null) {

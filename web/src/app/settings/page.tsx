@@ -19,10 +19,11 @@ import {
   Check,
   ShieldCheck,
   Edit3,
+  Mic,
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { currency, setCurrencyCode, userProfile, user, isSupabaseLive, isRealtimeConnected } = useFinance();
+  const { currency, setCurrencyCode, voiceLanguage, setVoiceLanguage, userProfile, user, isSupabaseLive, isRealtimeConnected } = useFinance();
   const { theme, setTheme } = useTheme();
   const supabase = createClient();
 
@@ -171,6 +172,52 @@ export default function SettingsPage() {
             <span className="text-xs">System</span>
           </button>
         </div>
+      </div>
+
+      {/* Voice Input Language & Privacy */}
+      <div className="p-7 rounded-3xl fintech-card space-y-5">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 rounded-2xl bg-[#D4AF6A]/15 text-[#D4AF6A]">
+            <Mic className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Voice Input Language</h2>
+            <p className="text-xs text-muted-foreground">
+              Choose spoken recognition language for Voice Entry
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { tag: 'en-IN' as const, label: 'English (India)', sub: 'en-IN (Default)' },
+            { tag: 'ta-IN' as const, label: 'Tamil', sub: 'ta-IN' },
+          ].map((opt) => {
+            const isSelected = voiceLanguage === opt.tag;
+            return (
+              <button
+                key={opt.tag}
+                type="button"
+                onClick={() => setVoiceLanguage(opt.tag)}
+                className={`p-4 rounded-2xl border flex items-center justify-between transition-all text-left ${
+                  isSelected
+                    ? 'border-[#D4AF6A] bg-[#D4AF6A]/15 text-foreground shadow-sm'
+                    : 'border-border bg-secondary/30 hover:bg-secondary/60 text-muted-foreground'
+                }`}
+              >
+                <div>
+                  <p className="text-sm font-bold text-foreground">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.sub}</p>
+                </div>
+                {isSelected && <Check className="w-4 h-4 text-[#D4AF6A]" />}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Privacy notice: Speech may be processed by Google or your browser&apos;s speech recognition service. Spendwise never records or stores audio — only the transaction you confirm and save is stored.
+        </p>
       </div>
 
       {/* Cloud & Realtime Status */}

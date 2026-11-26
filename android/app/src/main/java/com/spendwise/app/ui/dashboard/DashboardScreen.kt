@@ -46,7 +46,8 @@ fun DashboardScreen(
     onNavigateToTrips: () -> Unit,
     onNavigateToSettings: () -> Unit,
     isDark: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    onOpenVoiceEntry: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val haptic = LocalHapticFeedback.current
@@ -106,6 +107,27 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Voice Entry Gold Circle Mic Button
+                    Surface(
+                        shape = CircleShape,
+                        color = Gold500,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onOpenVoiceEntry()
+                            }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Add transaction by voice",
+                                tint = Plum900,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
                     // Quick Dark/Light Mode Glass Icon
                     GlassIconButton(
                         onClick = onToggleTheme,

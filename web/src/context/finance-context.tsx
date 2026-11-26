@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { Category, Transaction, Budget, Trip, CurrencyCode, CURRENCIES, CurrencyConfig } from '@/types/database';
+import type { VoiceLanguage } from '@/lib/voice-parser';
 import { DEFAULT_CATEGORIES, INITIAL_TRANSACTIONS, INITIAL_BUDGETS, INITIAL_TRIPS } from '@/lib/supabase/mock-data';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
@@ -26,6 +27,8 @@ interface FinanceContextType {
   trips: Trip[];
   currency: CurrencyConfig;
   setCurrencyCode: (code: CurrencyCode) => void;
+  voiceLanguage: VoiceLanguage;
+  setVoiceLanguage: (lang: VoiceLanguage) => void;
   userProfile: UserProfile;
   updateUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
   user: any | null;
@@ -102,6 +105,7 @@ function deduplicateCategories(list: Category[], allowedUserIds?: string[]): Cat
 
 export function FinanceProvider({ children }: { children: React.ReactNode }) {
   const [currencyCode, setCurrencyCodeState] = useState<CurrencyCode>('INR');
+  const [voiceLanguage, setVoiceLanguageState] = useState<VoiceLanguage>('en-IN');
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -124,6 +128,12 @@ export function FinanceProvider({ children }: { children: React.ReactNode }) {
     const savedCurrency = localStorage.getItem('spendwise_currency') as CurrencyCode | null;
     if (savedCurrency && CURRENCIES[savedCurrency]) {
       setCurrencyCodeState(savedCurrency);
+    }
+
+    // Load stored voice recognition language
+    const savedVoiceLang = localStorage.getItem('spendwise_voice_language');
+    if (savedVoiceLang === 'ta-IN' || savedVoiceLang === 'en-IN') {
+      setVoiceLanguageState(savedVoiceLang);
     }
 
     // Load stored profile & login state
@@ -976,6 +986,14 @@ ${transactionRows}
 
   const currency = CURRENCIES[currencyCode] || CURRENCIES.INR;
 
+  const setVoiceLanguage = useCallback((lang: VoiceLanguage) => {
+    const valid: VoiceLanguage = lang === 'ta-IN' ? 'ta-IN' : 'en-IN';
+    setVoiceLanguageState(valid);
+    try {
+      localStorage.setItem('spendwise_voice_language', valid);
+    } catch (_) {}
+  }, []);
+
   return (
     <FinanceContext.Provider
       value={{
@@ -985,6 +1003,8 @@ ${transactionRows}
         trips,
         currency,
         setCurrencyCode,
+        voiceLanguage,
+        setVoiceLanguage,
         userProfile,
         updateUserProfile,
         user,

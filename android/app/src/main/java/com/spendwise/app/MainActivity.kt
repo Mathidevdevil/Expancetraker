@@ -26,6 +26,7 @@ import com.spendwise.app.ui.categories.CategoriesScreen
 import com.spendwise.app.ui.categories.CategoriesViewModel
 import com.spendwise.app.ui.components.QuickAddBottomSheet
 import com.spendwise.app.ui.components.UpdateBottomSheet
+import com.spendwise.app.ui.components.VoiceEntryBottomSheet
 import com.spendwise.app.ui.components.glass.AuroraBackground
 import com.spendwise.app.ui.components.glass.LiquidGlassBottomBar
 import com.spendwise.app.ui.components.glass.LiquidTabItem
@@ -83,6 +84,8 @@ fun MainAppScaffold(
     val currentRoute = navBackStackEntry?.destination?.route
 
     var isQuickAddOpen by remember { mutableStateOf(false) }
+    var isVoiceEntryOpen by remember { mutableStateOf(false) }
+    val voiceLanguage by dashboardViewModel.voiceLanguage.collectAsState()
     val dashState by dashboardViewModel.uiState.collectAsState()
     val availableUpdate by dashboardViewModel.availableUpdate.collectAsState()
     val updateDownloadState by dashboardViewModel.updateDownloadState.collectAsState()
@@ -137,6 +140,9 @@ fun MainAppScaffold(
                         isDark = isDark,
                         onToggleTheme = {
                             dashboardViewModel.setThemeMode(if (isDark) "light" else "dark")
+                        },
+                        onOpenVoiceEntry = {
+                            isVoiceEntryOpen = true
                         }
                     )
                 }
@@ -238,12 +244,45 @@ fun MainAppScaffold(
                 trips = dashState.activeTrips,
                 currencySymbol = dashState.currencySymbol,
                 isDark = isDark,
+                onOpenVoiceEntry = {
+                    isQuickAddOpen = false
+                    isVoiceEntryOpen = true
+                },
                 onAddCategory = { name, type, icon, color ->
                     dashboardViewModel.addCategory(name, type, icon, color)
                 },
                 onSave = { amount, categoryId, tripId, paymentMethod, note, date, type ->
                     dashboardViewModel.quickAddExpense(amount, categoryId, tripId, paymentMethod, note, date = date, type = type)
                     isQuickAddOpen = false
+                }
+            )
+        }
+
+        // 3b. Voice Entry Bottom Sheet
+        if (isVoiceEntryOpen) {
+            VoiceEntryBottomSheet(
+                onDismiss = { isVoiceEntryOpen = false },
+                onSwitchToManual = {
+                    isVoiceEntryOpen = false
+                    isQuickAddOpen = true
+                },
+                categories = dashState.categories,
+                voiceLanguage = voiceLanguage,
+                isDark = isDark,
+                onParseTranscript = { transcript ->
+                    dashboardViewModel.parseVoiceTranscript(transcript)
+                },
+                onSaveTransaction = { amount, categoryId, paymentMethod, note, date, type ->
+                    dashboardViewModel.quickAddExpense(
+                        amount = amount,
+                        categoryId = categoryId,
+                        tripId = null,
+                        paymentMethod = paymentMethod,
+                        note = note,
+                        date = date,
+                        type = type
+                    )
+                    isVoiceEntryOpen = false
                 }
             )
         }

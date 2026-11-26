@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +52,7 @@ fun QuickAddBottomSheet(
     currencySymbol: String = "₹",
     isDark: Boolean = isSystemInDarkTheme(),
     initialTransaction: TransactionEntity? = null,
+    onOpenVoiceEntry: (() -> Unit)? = null,
     onAddCategory: ((name: String, type: String, icon: String, color: String) -> Unit)? = null,
     onSave: (amount: Double, categoryId: String?, tripId: String?, paymentMethod: String, note: String?, date: String, type: String) -> Unit
 ) {
@@ -183,12 +186,38 @@ fun QuickAddBottomSheet(
                     color = if (isDark) TextPrimaryDark else TextPrimaryLight
                 )
 
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = if (isDark) TextMutedDark else TextMutedLight
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (onOpenVoiceEntry != null && initialTransaction == null) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Gold500)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onOpenVoiceEntry()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Speak transaction by voice",
+                                tint = Plum900,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = if (isDark) TextMutedDark else TextMutedLight
+                        )
+                    }
                 }
             }
 

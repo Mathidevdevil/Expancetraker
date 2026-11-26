@@ -6,6 +6,8 @@ import { useFinance } from '@/context/finance-context';
 import { formatCurrency, formatFriendlyDate, formatDate } from '@/lib/utils';
 import { CategoryIcon } from '@/components/category-icon';
 import { EditProfileModal } from '@/components/edit-profile-modal';
+import { QuickAddModal } from '@/components/quick-add-modal';
+import { VoiceEntryModal, VoiceMicTrigger } from '@/components/voice-entry-modal';
 import {
   TrendingUp,
   TrendingDown,
@@ -21,6 +23,8 @@ import {
 export default function DashboardPage() {
   const { transactions, categories, budgets, trips, currency, userProfile } = useFinance();
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
 
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth() + 1;
@@ -117,6 +121,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <VoiceMicTrigger
+            onClick={() => setIsVoiceOpen(true)}
+            label="Add transaction by voice"
+          />
+
           <div className="px-3.5 py-1.5 rounded-full bg-secondary/80 border border-border text-xs font-semibold text-muted-foreground flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
             <span>Supabase RLS Active</span>
@@ -437,6 +446,17 @@ export default function DashboardPage() {
       <EditProfileModal
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
+      />
+
+      <VoiceEntryModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        onSwitchToManual={() => setIsManualQuickAddOpen(true)}
+      />
+
+      <QuickAddModal
+        isOpen={isManualQuickAddOpen}
+        onClose={() => setIsManualQuickAddOpen(false)}
       />
     </div>
   );

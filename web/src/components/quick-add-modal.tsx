@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useFinance } from '@/context/finance-context';
 import { Modal } from './ui/modal';
 import { CategoryIcon } from './category-icon';
+import { VoiceEntryModal, VoiceMicTrigger } from './voice-entry-modal';
 import { TransactionType, PaymentMethod, Transaction } from '@/types/database';
 import { Calendar, CreditCard, Tag, Plane, Plus } from 'lucide-react';
 
@@ -47,6 +48,7 @@ export function QuickAddModal({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
+  const [isVoiceOpen, setIsVoiceOpen] = useState<boolean>(false);
 
   // Only reset form fields when modal opens or editing target changes (never when categories update!)
   useEffect(() => {
@@ -136,6 +138,7 @@ export function QuickAddModal({
   };
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={onClose}
@@ -143,6 +146,21 @@ export function QuickAddModal({
       maxWidth="max-w-lg"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
+        {!editingTransaction && (
+          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl bg-secondary/45 border border-[#D4AF6A]/30">
+            <div>
+              <p className="text-xs font-bold text-foreground">Quick Voice Entry</p>
+              <p className="text-[11px] text-muted-foreground">Speak amount, category, date &amp; payment, or fill below</p>
+            </div>
+            <VoiceMicTrigger
+              onClick={() => {
+                onClose();
+                setIsVoiceOpen(true);
+              }}
+              label="Speak transaction by voice"
+            />
+          </div>
+        )}
         {formError && (
           <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-400 text-xs font-semibold">
             {formError}
@@ -362,5 +380,11 @@ export function QuickAddModal({
         </div>
       </form>
     </Modal>
+
+    <VoiceEntryModal
+      isOpen={isVoiceOpen}
+      onClose={() => setIsVoiceOpen(false)}
+    />
+    </>
   );
 }

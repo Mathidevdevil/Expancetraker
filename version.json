@@ -1,7 +1,7 @@
 {
-  "version_code": 10,
-  "version_name": "1.0.9",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.0.9.apk",
-  "changelog": "• Fixed duplicate/repeated categories synced across accounts\n• Fixed expense & custom category saving (foreign-key & timestamp fixes)\n• Fixed QuickAdd category selection reset, decimal chips & Trip linking\n• Fixed account-switching local sync order & date locale parsing",
+  "version_code": 11,
+  "version_name": "1.1.0",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.1.0.apk",
+  "changelog": "• Added Voice Entry for hands-free income & expense logging (Overview + Add Transaction)\n• Offline rule-based & optional Gemini speech transcript parser with English (en-IN) & Tamil (ta-IN) support\n• Added Royal Plum pulsing Listening Sheet & editable Confirmation Card with Indian INR formatting\n• Added Voice Language setting and speech privacy notice in Settings",
   "is_mandatory": false
 }

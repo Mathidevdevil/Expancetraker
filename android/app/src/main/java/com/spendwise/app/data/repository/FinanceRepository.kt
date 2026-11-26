@@ -229,6 +229,17 @@ class FinanceRepository @Inject constructor(
         _themeMode.value = validMode
     }
 
+    private val _voiceLanguage = MutableStateFlow(
+        prefs.getString("voice_language", "en-IN") ?: "en-IN"
+    )
+    val voiceLanguage: StateFlow<String> = _voiceLanguage.asStateFlow()
+
+    fun setVoiceLanguage(languageTag: String) {
+        val valid = if (languageTag == "ta-IN") "ta-IN" else "en-IN"
+        prefs.edit().putString("voice_language", valid).apply()
+        _voiceLanguage.value = valid
+    }
+
     private val _userProfile = MutableStateFlow(
         UserProfile(
             name = prefs.getString("user_name", "Spendwise User") ?: "Spendwise User",
