@@ -213,10 +213,11 @@ object VoiceTransactionParser {
         categories: List<CategoryEntity>,
         supabaseUrl: String,
         supabaseKey: String,
+        accessToken: String? = null,
         referenceDateMillis: Long = System.currentTimeMillis()
     ): ParsedVoiceTransaction {
         val offlineResult = parseOffline(transcript, categories, referenceDateMillis)
-        if (supabaseUrl.isBlank() || supabaseKey.isBlank() || transcript.isBlank()) {
+        if (supabaseUrl.isBlank() || supabaseKey.isBlank() || accessToken.isNullOrBlank() || transcript.isBlank()) {
             return offlineResult
         }
 
@@ -231,7 +232,7 @@ object VoiceTransactionParser {
                         doOutput = true
                         setRequestProperty("Content-Type", "application/json")
                         setRequestProperty("apikey", supabaseKey)
-                        setRequestProperty("Authorization", "Bearer $supabaseKey")
+                        setRequestProperty("Authorization", "Bearer $accessToken")
                     }
 
                     val bodyJson = json.encodeToString(

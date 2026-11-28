@@ -38,9 +38,17 @@ function LoginForm() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleCredentialResponse = (response: any) => {
+    const handleCredentialResponse = async (response: any) => {
       try {
         if (response.credential) {
+          if (isConfigured) {
+            try {
+              await supabase.auth.signInWithIdToken({
+                provider: 'google',
+                token: response.credential,
+              });
+            } catch (_) {}
+          }
           const base64Url = response.credential.split('.')[1];
           const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
           const jsonPayload = decodeURIComponent(

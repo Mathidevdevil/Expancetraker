@@ -1,0 +1,28 @@
+title = "Spendwise gitleaks config"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "spendwise-supabase-service-role"
+description = "Supabase service role / secret key"
+regex = '''(sb_secret_[A-Za-z0-9_-]{16,}|service_role\s*[:=]\s*["']?eyJ[A-Za-z0-9._-]+)'''
+
+[[rules]]
+id = "spendwise-gemini-key"
+description = "Google / Gemini API Key"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+
+[[rules]]
+id = "spendwise-keystore-password"
+description = "Hardcoded Android keystore password"
+regex = '''(storePassword|keyPassword)\s*=\s*["'][^"']+["']'''
+
+[allowlist]
+description = "Allow documentation, test fixtures, and example templates"
+paths = [
+  '''^\.env\.example$''',
+  '''^\.gitleaks\.toml$''',
+  '''^scripts/''',
+  '''^supabase/migrations/.*test\.sql$''',
+]

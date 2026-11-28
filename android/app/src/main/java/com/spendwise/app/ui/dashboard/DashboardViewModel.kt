@@ -12,6 +12,7 @@ import com.spendwise.app.data.repository.UserProfile
 import com.spendwise.app.voice.ParsedVoiceTransaction
 import com.spendwise.app.voice.VoiceTransactionParser
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.*
@@ -176,11 +177,17 @@ class DashboardViewModel @Inject constructor(
     }
 
     suspend fun parseVoiceTranscript(transcript: String): ParsedVoiceTransaction {
+        val accessToken = if (supabaseProvider.isConfigured) {
+            runCatching { supabaseProvider.getClient().auth.currentSessionOrNull()?.accessToken }.getOrNull()
+        } else {
+            null
+        }
         return VoiceTransactionParser.parseWithOptionalSmartFallback(
             transcript = transcript,
             categories = _uiState.value.categories,
             supabaseUrl = supabaseProvider.supabaseUrl,
-            supabaseKey = supabaseProvider.supabaseKey
+            supabaseKey = supabaseProvider.supabaseKey,
+            accessToken = accessToken
         )
     }
 

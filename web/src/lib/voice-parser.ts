@@ -380,13 +380,14 @@ export function parseVoiceTranscriptOffline(
 export async function parseVoiceTranscriptWithSmartFallback(
   transcript: string,
   categories: Category[],
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  accessToken?: string | null
 ): Promise<ParsedVoiceTransaction> {
   const offline = parseVoiceTranscriptOffline(transcript, categories, referenceDate);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || !transcript.trim()) {
+  if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('placeholder') || !accessToken || !transcript.trim()) {
     return offline;
   }
 
@@ -399,7 +400,7 @@ export async function parseVoiceTranscriptWithSmartFallback(
       headers: {
         'Content-Type': 'application/json',
         apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         transcript,

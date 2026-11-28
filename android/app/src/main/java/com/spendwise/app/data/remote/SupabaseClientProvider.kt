@@ -1,6 +1,7 @@
 package com.spendwise.app.data.remote
 
 import android.content.Context
+import com.spendwise.app.BuildConfig
 import com.spendwise.app.data.model.*
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
@@ -18,9 +19,9 @@ import javax.inject.Singleton
 @Singleton
 class SupabaseClientProvider @Inject constructor() {
 
-    // Default configuration pointing to the Spendwise live project
-    var supabaseUrl: String = "https://ahzrvlkrgowgsfuirlae.supabase.co"
-    var supabaseKey: String = "sb_publishable_0NHdCL1EKUB1m6zmmgyeXw_VIo27WKi"
+    // Loaded from BuildConfig (populated via untracked local.properties or CI environment variables)
+    var supabaseUrl: String = BuildConfig.SUPABASE_URL
+    var supabaseKey: String = BuildConfig.SUPABASE_ANON_KEY
 
     private var _client: SupabaseClient? = null
 

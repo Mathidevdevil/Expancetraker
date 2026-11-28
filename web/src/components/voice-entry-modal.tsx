@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'lucide-react';
 import { useFinance } from '@/context/finance-context';
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import type { PaymentMethod, TransactionType } from '@/types/database';
 import {
   formatInrAmount,
@@ -186,7 +187,16 @@ export function VoiceEntryModal({ isOpen, onClose, onSwitchToManual }: VoiceEntr
     setRawTranscript(clean);
     setStage('parsing');
 
-    const parsed = await parseVoiceTranscriptWithSmartFallback(clean, categoriesRef.current);
+    const parsed = await (async () => {
+      let accessToken: string | null = null;
+      if (isSupabaseConfigured()) {
+        try {
+          const { data } = await createClient().auth.getSession();
+          accessToken = data?.session?.access_token ?? null;
+        } catch (_) {}
+      }
+      return parseVoiceTranscriptWithSmartFallback(clean, categoriesRef.current, new Date(), accessToken);
+    })();
     setTxType(parsed.type);
     setAmountInput(parsed.amount && parsed.amount > 0 ? String(parsed.amount) : '');
     setEditingAmount(!parsed.amount || parsed.amount <= 0);

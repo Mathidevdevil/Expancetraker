@@ -1,9 +1,23 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+val localProps = Properties().apply {
+    listOf(rootProject.file("local.properties"), rootProject.file("keystore.properties")).forEach { f ->
+        if (f.exists()) {
+            f.inputStream().use { load(it) }
+        }
+    }
+}
+
+fun configProp(key: String, defaultValue: String = ""): String {
+    return (System.getenv(key) ?: localProps.getProperty(key) ?: defaultValue).trim()
 }
 
 android {
@@ -14,8 +28,13 @@ android {
         applicationId = "com.spendwise.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.1.1"
+        versionCode = 13
+        versionName = "1.1.2"
+
+        val supabaseUrl = configProp("SUPABASE_URL").replace("\"", "\\\"")
+        val supabaseAnonKey = configProp("SUPABASE_ANON_KEY").replace("\"", "\\\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -24,22 +43,30 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("spendwise-debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
-            enableV4Signing = false
+        val keystoreFilePath = configProp("SPENDWISE_KEYSTORE_FILE")
+        val keystorePassword = configProp("SPENDWISE_KEYSTORE_PASSWORD")
+        val keyAliasProp = configProp("SPENDWISE_KEY_ALIAS")
+        val keyPasswordProp = configProp("SPENDWISE_KEY_PASSWORD")
+        if (keystoreFilePath.isNotEmpty() && keystorePassword.isNotEmpty() && keyAliasProp.isNotEmpty() && keyPasswordProp.isNotEmpty()) {
+            create("release") {
+                storeFile = file(keystoreFilePath)
+                storePassword = keystorePassword
+                keyAlias = keyAliasProp
+                keyPassword = keyPasswordProp
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
+            }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,7 +74,7 @@ android {
         }
         debug {
             isDebuggable = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -110,7 +137,7 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:postgrest-kt:$supabaseVersion")
     implementation("io.github.jan-tennert.supabase:gotrue-kt:$supabaseVersion")
     implementation("io.github.jan-tennert.supabase:realtime-kt:$supabaseVersion")
-    implementation("io.ktor:ktor-client-android:2.3.12")
+    implementation("io.ktor:ktor-client-android:2.3.13")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Credential Manager for Google Sign-In

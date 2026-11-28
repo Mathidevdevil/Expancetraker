@@ -79,12 +79,15 @@ create index if not exists idx_trips_user on public.trips(user_id);
 
 -- 8. Updated At Trigger Function
 create or replace function public.handle_updated_at()
-returns trigger as $$
+returns trigger
+language plpgsql
+set search_path = public
+as $$
 begin
     new.updated_at = now();
     return new;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists trg_categories_updated_at on public.categories;
 create trigger trg_categories_updated_at
@@ -106,11 +109,49 @@ create trigger trg_budgets_updated_at
     before update on public.budgets
     for each row execute function public.handle_updated_at();
 
--- 9. Open Read & Write Access (Never block client app storing)
-alter table public.categories disable row level security;
-alter table public.trips disable row level security;
-alter table public.transactions disable row level security;
-alter table public.budgets disable row level security;
+-- 9. Strict Owner-Scoped Row Level Security (RLS)
+revoke all on table public.categories from anon;
+revoke all on table public.trips from anon;
+revoke all on table public.transactions from anon;
+revoke all on table public.budgets from anon;
+
+grant select on table public.categories to anon;
+grant select, insert, update, delete on table public.categories to authenticated;
+grant select, insert, update, delete on table public.trips to authenticated;
+grant select, insert, update, delete on table public.transactions to authenticated;
+grant select, insert, update, delete on table public.budgets to authenticated;
+
+alter table public.categories enable row level security;
+alter table public.trips enable row level security;
+alter table public.transactions enable row level security;
+alter table public.budgets enable row level security;
+
+create policy "categories_select_own_or_default" on public.categories for select to authenticated
+    using ((user_id is null and is_default = true) or (select auth.uid())::text = user_id);
+create policy "categories_anon_select_default" on public.categories for select to anon
+    using (user_id is null and is_default = true);
+create policy "categories_insert_own" on public.categories for insert to authenticated
+    with check ((select auth.uid())::text = user_id and is_default = false);
+create policy "categories_update_own" on public.categories for update to authenticated
+    using ((select auth.uid())::text = user_id and is_default = false)
+    with check ((select auth.uid())::text = user_id and is_default = false);
+create policy "categories_delete_own" on public.categories for delete to authenticated
+    using ((select auth.uid())::text = user_id and is_default = false);
+
+create policy "trips_select_own" on public.trips for select to authenticated using ((select auth.uid())::text = user_id);
+create policy "trips_insert_own" on public.trips for insert to authenticated with check ((select auth.uid())::text = user_id);
+create policy "trips_update_own" on public.trips for update to authenticated using ((select auth.uid())::text = user_id) with check ((select auth.uid())::text = user_id);
+create policy "trips_delete_own" on public.trips for delete to authenticated using ((select auth.uid())::text = user_id);
+
+create policy "transactions_select_own" on public.transactions for select to authenticated using ((select auth.uid())::text = user_id);
+create policy "transactions_insert_own" on public.transactions for insert to authenticated with check ((select auth.uid())::text = user_id);
+create policy "transactions_update_own" on public.transactions for update to authenticated using ((select auth.uid())::text = user_id) with check ((select auth.uid())::text = user_id);
+create policy "transactions_delete_own" on public.transactions for delete to authenticated using ((select auth.uid())::text = user_id);
+
+create policy "budgets_select_own" on public.budgets for select to authenticated using ((select auth.uid())::text = user_id);
+create policy "budgets_insert_own" on public.budgets for insert to authenticated with check ((select auth.uid())::text = user_id);
+create policy "budgets_update_own" on public.budgets for update to authenticated using ((select auth.uid())::text = user_id) with check ((select auth.uid())::text = user_id);
+create policy "budgets_delete_own" on public.budgets for delete to authenticated using ((select auth.uid())::text = user_id);
 
 -- 10. Direct Seed Global Default Categories (Accessible by all users)
 insert into public.categories (id, user_id, name, type, icon, color, is_default) values
@@ -170,11 +211,12 @@ create table if not exists public.app_updates (
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
-alter table public.app_updates disable row level security;
+alter table public.app_updates enable row level security;
 alter table public.app_updates replica identity full;
 
--- Grant public access so any installed Android app can check for latest release
+-- Grant public read access so any installed Android app can check for latest release
 grant select on table public.app_updates to anon, authenticated;
+create policy "app_updates_public_read" on public.app_updates for select to anon, authenticated using (true);
 
 -- Release v1.0.3 (Inline (+) Category, Edit Date, Activity Edit, Budget Target Edit, Container Borders)
 insert into public.app_updates (version_code, version_name, apk_url, changelog, is_mandatory)

@@ -20,10 +20,17 @@ node_modules/
 
 # Secrets & Environment configs
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+web/.env
 web/.env.local
 web/.env.*.local
+android/keystore.properties
+android/app/*.jks
+android/app/*.keystore
+android/app/*.p12
+*.pem
+*.key
 
 # Editor & System
 .vscode/

@@ -141,36 +141,64 @@ class UpdateManager @Inject constructor(
         return@withContext null
     }
 
+    private val allowedOtaHosts = setOf(
+        "raw.githubusercontent.com",
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com"
+    )
+
+    internal fun isTrustedOtaUrl(rawUrl: String?): Boolean {
+        if (rawUrl.isNullOrBlank()) return false
+        val parsed = runCatching { URL(rawUrl) }.getOrNull() ?: return false
+        if (!parsed.protocol.equals("https", ignoreCase = true)) return false
+        val host = parsed.host.lowercase()
+        return allowedOtaHosts.any { host == it || host.endsWith(".$it") }
+    }
+
     /**
-     * Downloads the APK file with real-time progress and triggers the system package installer.
+     * Downloads the APK file over HTTPS from trusted release hosts and triggers the installer.
      */
     suspend fun downloadAndInstallApk(apkUrl: String) = withContext(Dispatchers.IO) {
         _downloadState.value = UpdateDownloadState.Downloading(0f)
         var connection: HttpURLConnection? = null
         try {
-            val url = URL(apkUrl)
-            connection = (url.openConnection() as HttpURLConnection).apply {
+            if (!isTrustedOtaUrl(apkUrl)) {
+                _downloadState.value = UpdateDownloadState.Error("Untrusted or non-HTTPS update URL.")
+                return@withContext
+            }
+            var activeConn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 15000
                 readTimeout = 30000
-                instanceFollowRedirects = true
+                instanceFollowRedirects = false
             }
+            connection = activeConn
 
-            // Handle redirect if needed (GitHub download URLs redirect to objects.githubusercontent.com)
-            var code = connection.responseCode
-            if (code == HttpURLConnection.HTTP_MOVED_TEMP || code == HttpURLConnection.HTTP_MOVED_PERM || code == 307) {
-                val newUrl = connection.getHeaderField("Location")
-                connection.disconnect()
-                connection = (URL(newUrl).openConnection() as HttpURLConnection).apply {
+            // Handle redirect safely, verifying HTTPS and trusted hosts on every hop
+            var code = activeConn.responseCode
+            var hops = 0
+            while ((code == HttpURLConnection.HTTP_MOVED_TEMP || code == HttpURLConnection.HTTP_MOVED_PERM || code == 307 || code == 308) && hops < 4) {
+                val newUrl = activeConn.getHeaderField("Location")
+                activeConn.disconnect()
+                if (!isTrustedOtaUrl(newUrl)) {
+                    _downloadState.value = UpdateDownloadState.Error("Blocked untrusted redirect URL.")
+                    return@withContext
+                }
+                activeConn = (URL(newUrl).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15000
                     readTimeout = 30000
+                    instanceFollowRedirects = false
                 }
+                connection = activeConn
+                code = activeConn.responseCode
+                hops++
             }
 
-            val fileLength = connection.contentLength
+            val fileLength = activeConn.contentLength
             val destinationFile = File(context.cacheDir, "spendwise_update.apk")
             if (destinationFile.exists()) destinationFile.delete()
 
-            connection.inputStream.use { input ->
+            activeConn.inputStream.use { input ->
                 FileOutputStream(destinationFile).use { output ->
                     val data = ByteArray(8192)
                     var total: Long = 0

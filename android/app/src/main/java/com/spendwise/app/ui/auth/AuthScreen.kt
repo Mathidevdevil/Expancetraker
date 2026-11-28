@@ -216,7 +216,7 @@ class AuthViewModel @Inject constructor(
                 onComplete()
             } catch (e: Exception) {
                 val rawMsg = e.message ?: ""
-                android.util.Log.e("AuthScreen", "Auth error: $rawMsg", e)
+                android.util.Log.e("AuthScreen", "Auth error (${e::class.java.simpleName})")
                 if (rawMsg.contains("invalid", ignoreCase = true) || rawMsg.contains("credentials", ignoreCase = true)) {
                     errorMessage = "Incorrect email or password. Please verify and try again."
                 } else if (rawMsg.contains("email not confirmed", ignoreCase = true) || rawMsg.contains("email_not_confirmed", ignoreCase = true)) {

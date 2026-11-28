@@ -7,6 +7,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.util.Log
 import com.spendwise.app.data.local.AppDatabase
+import com.spendwise.app.data.local.SecurePrefsHelper
 import com.spendwise.app.data.model.*
 import com.spendwise.app.data.remote.SupabaseClientProvider
 import io.github.jan.supabase.gotrue.auth
@@ -38,7 +39,7 @@ class FinanceRepository @Inject constructor(
     private val appDatabase: AppDatabase,
     private val supabaseProvider: SupabaseClientProvider
 ) {
-    private val prefs = context.getSharedPreferences("spendwise_prefs", Context.MODE_PRIVATE)
+    private val prefs = SecurePrefsHelper.create(context)
     private val categoryDao = appDatabase.categoryDao()
     private val transactionDao = appDatabase.transactionDao()
     private val budgetDao = appDatabase.budgetDao()
@@ -162,19 +163,19 @@ class FinanceRepository @Inject constructor(
 
     var selectedCurrency: String
         get() = prefs.getString("selected_currency", "INR") ?: "INR"
-        set(value) { prefs.edit().putString("selected_currency", value).apply() }
+        set(value) { prefs.putString("selected_currency", value) }
 
     var selectedCurrencySymbol: String
         get() = prefs.getString("selected_currency_symbol", "₹") ?: "₹"
-        set(value) { prefs.edit().putString("selected_currency_symbol", value).apply() }
+        set(value) { prefs.putString("selected_currency_symbol", value) }
 
     var isLoggedIn: Boolean
         get() = prefs.getBoolean("is_logged_in", false)
-        set(value) { prefs.edit().putBoolean("is_logged_in", value).apply() }
+        set(value) { prefs.putBoolean("is_logged_in", value) }
 
     var authUserId: String
         get() = prefs.getString("auth_user_id", "") ?: ""
-        set(value) { prefs.edit().putString("auth_user_id", value).apply() }
+        set(value) { prefs.putString("auth_user_id", value) }
 
     fun getEffectiveUserId(): String {
         val storedId = authUserId
@@ -225,7 +226,7 @@ class FinanceRepository @Inject constructor(
             "light", "system" -> mode
             else -> "dark"
         }
-        prefs.edit().putString("theme_mode", validMode).apply()
+        prefs.putString("theme_mode", validMode)
         _themeMode.value = validMode
     }
 
@@ -236,7 +237,7 @@ class FinanceRepository @Inject constructor(
 
     fun setVoiceLanguage(languageTag: String) {
         val valid = if (languageTag == "ta-IN") "ta-IN" else "en-IN"
-        prefs.edit().putString("voice_language", valid).apply()
+        prefs.putString("voice_language", valid)
         _voiceLanguage.value = valid
     }
 
@@ -259,11 +260,13 @@ class FinanceRepository @Inject constructor(
             .joinToString("")
             .ifEmpty { "SW" }
 
-        prefs.edit()
-            .putString("user_name", cleanName)
-            .putString("user_email", cleanEmail)
-            .putString("user_initials", derivedInitials)
-            .apply()
+        prefs.putStrings(
+            mapOf(
+                "user_name" to cleanName,
+                "user_email" to cleanEmail,
+                "user_initials" to derivedInitials
+            )
+        )
 
         _userProfile.value = UserProfile(
             name = cleanName,
@@ -402,9 +405,8 @@ class FinanceRepository @Inject constructor(
                         transactionDao.insertOrUpdate(targetTx)
                         client.from("transactions").upsert(targetTx)
                         transactionDao.updateSyncStatus(tx.id, SyncStatus.SYNCED)
-                        Log.i("FinanceRepository", "Synced offline transaction ${tx.id} (${tx.type} ₹${tx.amount}) to cloud")
                     } catch (e: Exception) {
-                        Log.w("FinanceRepository", "Failed syncing pending transaction ${tx.id}: ${e.message}")
+                        Log.w("FinanceRepository", "Failed syncing pending transaction: ${e::class.java.simpleName}")
                     }
                 }
 

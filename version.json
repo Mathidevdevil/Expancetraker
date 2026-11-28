@@ -1,7 +1,7 @@
 {
-  "version_code": 12,
-  "version_name": "1.1.1",
-  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.1.1.apk",
-  "changelog": "• Fixed Android 11+ speech recognition package visibility (<queries> for RecognitionService & RECOGNIZE_SPEECH)\n• Added automatic on-device -> default SpeechRecognizer & Google System Voice Dialog fallback\n• Preserved captured partial speech on timeout and stabilized Web Speech listener lifecycle\n• Added Done button & App Settings shortcut for microphone permissions",
+  "version_code": 13,
+  "version_name": "1.1.2",
+  "apk_url": "https://raw.githubusercontent.com/Mathidevdevil/Expancetraker/main/release/spendwise-v1.1.2.apk",
+  "changelog": "• Security hardening: Keystore AES-256-GCM encrypted session & profile storage with seamless migration\n• Security hardening: HTTPS-only network policy, trusted OTA host verification, & disabled plain backups\n• Release R8 minification, obfuscation & log sanitization; authenticated JWT forwarding for Gemini Voice Entry\n• Next.js security headers, SSR cookie hardening, and OAuth callback open-redirect protection",
   "is_mandatory": false
 }
